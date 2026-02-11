@@ -65,8 +65,8 @@ const DayPickerStrings: IDatePickerStrings = {
 export class Event extends React.Component<IEventProps, IEventState> {
   private spService: spservices = null;
   private attendees: IPersonaProps[] = [];
-  private latitude: number = 41.1931819;
-  private longitude: number = -8.4897452;
+  private latitude: number = 49.88297175075214;
+  private longitude: number = -97.18538923059701;
   private returnedRecurrenceInfo: { recurrenceData: string, eventDate: Date, endDate: Date } = undefined;
 
   private categoryDropdownOption: IDropdownOption[] = [];
