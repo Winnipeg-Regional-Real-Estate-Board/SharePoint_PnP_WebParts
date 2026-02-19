@@ -167,8 +167,13 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
    */
   public async componentDidMount() {
     const categories: IOption[] = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.list, 'Category');
+    // Add a virtual option for "No Category"
+    const noCategoryOption: IOption = { key: '__NO_CATEGORY__', text: 'No Category' };
+    const extentedCategories = [noCategoryOption, ...categories];
 
-    this.setState({ isloading: true, categories: categories, selectedCategories: categories});
+    // Default to select all categories - including the "No Category" option
+
+    this.setState({ isloading: true, categories: extentedCategories, selectedCategories: extentedCategories});
     await this.loadEvents();
     this.setState({ isloading: false });
   }

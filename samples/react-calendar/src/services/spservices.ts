@@ -602,15 +602,42 @@ export default class spservices {
       <RowLimit Paged=\"FALSE\">2000</RowLimit>
       </View>`;
 
+    // "No Category" option handling
+    const hasNoCategoryOption = categories.some(category => category.key === '__NO_CATEGORY__');
+    const actualCategories = hasNoCategoryOption ? categories.filter(category => category.key !== '__NO_CATEGORY__') : categories;
+
     let categoryCondition = `
         <Eq>
           <FieldRef Name='Category' />
           <Value Type='Choice'>{0}</Value>
         </Eq>`;
 
-    const deptsLength: number = categories.length;
+    let noCategoryCondition = `
+        <IsNull>
+          <FieldRef Name='Category' />
+        </IsNull>`;
+
+    const deptsLength: number = actualCategories.length;
     let queryResult: string = "";
 
+    // If "No Category" option is selected, include events with no category and events that match the selected categories
+    if (hasNoCategoryOption) {
+      if (deptsLength > 0) {
+        let orCondition: string = `${Constants.OrConditionStart}{0}{1}${Constants.OrConditionEnd}`;
+        queryResult = Text.format(orCondition, noCategoryCondition, Text.format(categoryCondition, actualCategories[0].key));
+        for (let i = 1; i < actualCategories.length; i++) {
+          const category = actualCategories[i];
+          queryResult = Text.format(orCondition, Text.format(categoryCondition, category.key), queryResult);
+        }
+        queryResult = Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
+      } else {
+        // Only "No Category" option is selected, so filter for items with no category
+        queryResult = Text.format(camlQuery, Constants.AndConditionStart, noCategoryCondition, Constants.AndConditionEnd);
+      }
+      return queryResult;
+    }
+
+    // "No Category" option is not selected, proceed with filtering based on original selected categories only
     if (deptsLength > 0) {
       if (deptsLength == 1) {
         return Text.format(camlQuery, Constants.AndConditionStart, Text.format(categoryCondition, categories[0].key), Constants.AndConditionEnd);
@@ -625,6 +652,8 @@ export default class spservices {
       }
       return Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
     }
+
+    // No categories selected, return all events
     return Text.format(camlQuery, "", queryResult, "");
   }
 
