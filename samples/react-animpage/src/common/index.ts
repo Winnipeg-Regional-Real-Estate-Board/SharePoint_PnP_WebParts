@@ -1,1 +1,0 @@
-export {getSP} from "./pnpjsConfig"

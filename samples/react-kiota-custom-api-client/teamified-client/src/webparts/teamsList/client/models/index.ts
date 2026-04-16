@@ -1,5 +1,0 @@
-export * from './team'
-export * from './ping'
-export * from './identityPrincipal'
-export * from './provisionTeamCommand'
-export * from './channel'

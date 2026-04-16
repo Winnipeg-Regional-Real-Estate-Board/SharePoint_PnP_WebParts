@@ -1,6 +1,6 @@
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { sp, Web, PermissionKind, RegionalSettings, ISiteUser, IRegionalSettings} from "@pnp/sp/presets/all";
-import { graph, } from "@pnp/graph";
+import { graph } from "@pnp/graph";
 import * as $ from 'jquery';
 import { IEventData } from './IEventData';
 import * as moment from 'moment';
@@ -14,7 +14,7 @@ import { Text } from "@microsoft/sp-core-library";
 export default class spservices {
 
   constructor(private context: WebPartContext) {
-    // Setuo Context to PnPjs and MSGraph
+    // Setup Context to PnPjs and MSGraph
     sp.setup({
       spfxContext: this.context as any
     });
@@ -84,7 +84,7 @@ export default class spservices {
         Location: newEvent.location,
         fAllDayEvent: newEvent.fAllDayEvent,
         fRecurrence: newEvent.fRecurrence,
-        Category: newEvent.Category,
+        WRA_EventLocation: newEvent.WRA_EventLocation,
         EventType: newEvent.EventType,
         UID: newEvent.UID,
         RecurrenceData: newEvent.RecurrenceData ? await this.deCodeHtmlEntities(newEvent.RecurrenceData) : "",
@@ -136,7 +136,7 @@ export default class spservices {
         attendes: event.ParticipantsPickerId,
         fAllDayEvent: event.fAllDayEvent,
         geolocation: { Longitude: event.Geolocation ? event.Geolocation.Longitude : 0, Latitude: event.Geolocation ? event.Geolocation.Latitude : 0 },
-        Category: event.Category,
+        WRA_EventLocation: event.WRA_EventLocation,
         Duration: event.Duration,
         UID: event.UID,
         RecurrenceData: event.RecurrenceData ? await this.deCodeHtmlEntities(event.RecurrenceData) : "",
@@ -179,7 +179,7 @@ export default class spservices {
         Location: updateEvent.location,
         fAllDayEvent: updateEvent.fAllDayEvent,
         fRecurrence: updateEvent.fRecurrence,
-        Category: updateEvent.Category,
+        WRA_EventLocation: updateEvent.WRA_EventLocation,
         RecurrenceData: updateEvent.RecurrenceData ? await this.deCodeHtmlEntities(updateEvent.RecurrenceData) : "",
         EventType: updateEvent.EventType,
       };
@@ -442,20 +442,22 @@ export default class spservices {
    * @returns {Promise< IEventData[]>}
    * @memberof spservices
    */
-  public async getEvents(siteUrl: string, listId: string, eventStartDate: Date, eventEndDate: Date, categories: IComboBoxOption[]): Promise<IEventData[]> {
+  public async getEvents(siteUrl: string, listId: string, eventStartDate: Date, eventEndDate: Date, locations: IComboBoxOption[]): Promise<IEventData[]> {
 
     let events: IEventData[] = [];
     if (!siteUrl) {
       return [];
     }
+
     try {
-      // Get Category Field Choices
-      const categoryDropdownOption = await this.getChoiceFieldOptions(siteUrl, listId, 'Category');
-      let categoryColor: { category: string, color: string }[] = [];
-      for (const cat of categoryDropdownOption) {
-        categoryColor.push({ category: cat.text, color: await this.colorGenerate() });
+      
+      // Get WRA_EventLocation Field Choices
+      const locationDropdownOption = await this.getChoiceFieldOptions(siteUrl, listId, 'WRA_EventLocation');
+      let locationColor: { location: string, color: string }[] = [];
+      for (const loc of locationDropdownOption) {
+        locationColor.push({ location: loc.text, color: await this.colorGenerate() });
       }
-      let camlQueryExpression = this.setUpQueryExpression(eventStartDate, eventEndDate, categories);
+      let camlQueryExpression = this.setUpQueryExpression(eventStartDate, eventEndDate, locations);
 
       const web = sp.web;
       const results = await web.lists.getById(listId).usingCaching().renderListDataAsStream(
@@ -469,8 +471,8 @@ export default class spservices {
         let event: any = '';
         const mapEvents = async () : Promise<boolean> => {
             for (event of results.Row) {
-              const eventDate = await this.getLocalTime(event.EventDate);
-              const endDate = await this.getLocalTime(event.EndDate);
+              const eventDate = event.EventDate;
+              const endDate = event.EndDate;
               const initialsArray: string[] = event.Author[0].title.split(' ');
               const initials: string = initialsArray[0].charAt(0) + initialsArray[initialsArray.length - 1].charAt(0);
               const userPictureUrl = await this.getUserProfilePictureUrl(`i:0#.f|membership|${event.Author[0].email}`);
@@ -479,8 +481,8 @@ export default class spservices {
               const last: number = event.Geolocation.indexOf(')');
               const geo = event.Geolocation.substring(first, last);
               const geolocation = geo.split(' ');
-              const CategoryColorValue: any[] = categoryColor.filter((value) => {
-                return value.category == event.Category;
+              const LocationColorValue: any[] = locationColor.filter((value) => {
+                return value.location == event.WRA_EventLocation;
               });
               const isAllDayEvent: boolean = event["fAllDayEvent.value"] === "1";
 
@@ -501,12 +503,12 @@ export default class spservices {
                 ownerPhoto: userPictureUrl ?
                   `https://outlook.office365.com/owa/service.svc/s/GetPersonaPhoto?email=${event.Author[0].email}&UA=0&size=HR96x96` : '',
                 ownerInitial: initials,
-                color: CategoryColorValue.length > 0 ? CategoryColorValue[0].color : '#1a75ff', // blue default
+                color: LocationColorValue.length > 0 ? LocationColorValue[0].color : '#1a75ff', // blue default
                 ownerName: event.Author[0].title,
                 attendes: attendees,
                 fAllDayEvent: isAllDayEvent,
                 geolocation: { Longitude: parseFloat(geolocation[0]), Latitude: parseFloat(geolocation[1]) },
-                Category: event.Category,
+                WRA_EventLocation: event.WRA_EventLocation,
                 Duration: event.Duration,
                 RecurrenceData: event.RecurrenceData ? await this.deCodeHtmlEntities(event.RecurrenceData) : "",
                 fRecurrence: event.fRecurrence,
@@ -560,7 +562,7 @@ export default class spservices {
   private setUpQueryExpression(
     eventStartDate: Date,
     eventEndDate: Date,
-    categories: IComboBoxOption[]
+    locations: IComboBoxOption[]
   ) {
     let camlQuery = `
     <View>
@@ -581,6 +583,9 @@ export default class spservices {
       <FieldRef Name='EventType'/>
       <FieldRef Name='UID' />
       <FieldRef Name='fRecurrence' />
+      <FieldRef Name='WRA_EventLocation' />
+      <FieldRef Name='CommitteeName' />
+      <FieldRef Name='' />
     </ViewFields>
       <Query>
         <Where>
@@ -602,29 +607,58 @@ export default class spservices {
       <RowLimit Paged=\"FALSE\">2000</RowLimit>
       </View>`;
 
-    let categoryCondition = `
+    // "No Location" option handling
+    const hasNoLocationOption = locations.some(location => location.key === '__NO_LOCATION__');
+    const actualLocations = hasNoLocationOption ? locations.filter(location => location.key !== '__NO_LOCATION__') : locations;
+
+    let locationCondition = `
         <Eq>
-          <FieldRef Name='Category' />
+          <FieldRef Name='WRA_EventLocation' />
           <Value Type='Choice'>{0}</Value>
         </Eq>`;
 
-    const deptsLength: number = categories.length;
+    let noLocationCondition = `
+        <IsNull>
+          <FieldRef Name='WRA_EventLocation' />
+        </IsNull>`;
+
+    const locsLength: number = actualLocations.length;
     let queryResult: string = "";
 
-    if (deptsLength > 0) {
-      if (deptsLength == 1) {
-        return Text.format(camlQuery, Constants.AndConditionStart, Text.format(categoryCondition, categories[0].key), Constants.AndConditionEnd);
+    // If "No Location" option is selected, include events with no location and events that match the selected locations
+    if (hasNoLocationOption) {
+      if (locsLength > 0) {
+        let orCondition: string = `${Constants.OrConditionStart}{0}{1}${Constants.OrConditionEnd}`;
+        queryResult = Text.format(orCondition, noLocationCondition, Text.format(locationCondition, actualLocations[0].key));
+        for (let i = 1; i < actualLocations.length; i++) {
+          const location = actualLocations[i];
+          queryResult = Text.format(orCondition, Text.format(locationCondition, location.key), queryResult);
+        }
+        queryResult = Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
+      } else {
+        // Only "No Location" option is selected, so filter for items with no location
+        queryResult = Text.format(camlQuery, Constants.AndConditionStart, noLocationCondition, Constants.AndConditionEnd);
+      }
+      return queryResult;
+    }
+
+    // "No Location" option is not selected, proceed with filtering based on original selected locations only
+    if (locsLength > 0) {
+      if (locsLength == 1) {
+        return Text.format(camlQuery, Constants.AndConditionStart, Text.format(locationCondition, locations[0].key), Constants.AndConditionEnd);
       } else {
         let orCondition: string = `${Constants.OrConditionStart}{0}{1}${Constants.OrConditionEnd}`;
-        queryResult = Text.format(orCondition, Text.format(categoryCondition, categories[0].key), Text.format(categoryCondition, categories[1].key));
+        queryResult = Text.format(orCondition, Text.format(locationCondition, locations[0].key), Text.format(locationCondition, locations[1].key));
 
-        for (let i = 2; i < categories.length; i++) {
-          const category = categories[i];
-          queryResult = Text.format(orCondition, Text.format(categoryCondition, category.key), queryResult);
+        for (let i = 2; i < locations.length; i++) {
+          const location = locations[i];
+          queryResult = Text.format(orCondition, Text.format(locationCondition, location.key), queryResult);
         }
       }
       return Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
     }
+
+    // No locations selected, return all events
     return Text.format(camlQuery, "", queryResult, "");
   }
 

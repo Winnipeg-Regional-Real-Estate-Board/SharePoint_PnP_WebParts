@@ -51,7 +51,7 @@ import { Event } from '../../../../controls/Event/event';
 import { IPanelModelEnum } from '../../../../controls/Event/IPanelModeEnum';
 import { IEventData } from './../../../../services/IEventData';
 import { IUserPermissions } from './../../../../services/IUserPermissions';
-import Category from '../Category/Category';
+import WRAEventLocation from '../WRA_EventLocation/WRAEventLocation';
 import { IOption } from '../../../../services/IOption';
 
 
@@ -71,8 +71,8 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
     
     this.state = {
       showDialog: false,
-      categories: [],
-      selectedCategories: [],
+      locations: [],
+      selectedLocations: [],
       eventData: [],
       selectedEvent: undefined,
       isloading: true,
@@ -83,7 +83,7 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
     this.onDismissPanel = this.onDismissPanel.bind(this);
     this.onSelectEvent = this.onSelectEvent.bind(this);
     this.onSelectSlot = this.onSelectSlot.bind(this);
-    this.onChangeCategories = this.onChangeCategories.bind(this);
+    this.onChangeLocations = this.onChangeLocations.bind(this);
     this.spService = new spservices(this.props.context);
     moment.locale(this.props.context.pageContext.cultureInfo.currentUICultureName);
   }
@@ -93,10 +93,10 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
    * @param {*} selectedCatogries
    * @memberof Calendar
    */
-  private async onChangeCategories(selectedCategories: IComboBoxOption[]) {
+  private async onChangeLocations(selectedLocations: IComboBoxOption[]) {
     try {
       this.setState({
-        selectedCategories: selectedCategories
+        selectedLocations: selectedLocations
       });
       await this.loadEvents();
     } catch (error) {
@@ -128,8 +128,8 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
    * @memberof Calendar
    */
   private async onDismissPanel(refresh: boolean) {
-
-    this.setState({ showDialog: false });
+    // Reset selectedEvent and panelMode to ensure Event panel always gets fresh state
+    this.setState({ showDialog: false, selectedEvent: undefined, panelMode: undefined });
     if (refresh === true) {
       this.setState({ isloading: true });
       await this.loadEvents();
@@ -147,13 +147,13 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
       this.userListPermissions = await this.spService.getUserPermissions(this.props.siteUrl, this.props.list);
 
       let eventsData: IEventData[] = [];
-      if (this.state.selectedCategories.length > 0) { 
+      if (this.state.selectedLocations.length > 0) { 
         eventsData = await this.spService.getEvents(
           escape(this.props.siteUrl),
           escape(this.props.list),
           this.props.eventStartDate.value,
           this.props.eventEndDate.value,
-          this.state.selectedCategories
+          this.state.selectedLocations
         );
       }
 
@@ -166,9 +166,13 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
    * @memberof Calendar
    */
   public async componentDidMount() {
-    const categories: IOption[] = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.list, 'Category');
+    const locations: IOption[] = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.list, 'WRA_EventLocation');
+    // Add a virtual option for "No Location"
+    const noLocationOption: IOption = { key: '__NO_LOCATION__', text: 'No Location' };
+    const extendedLocations = [noLocationOption, ...locations];
 
-    this.setState({ isloading: true, categories: categories, selectedCategories: categories});
+    // Default to select all locations - including the "No Location" option
+    this.setState({ isloading: true, locations: extendedLocations, selectedLocations: extendedLocations});
     await this.loadEvents();
     this.setState({ isloading: false });
   }
@@ -349,8 +353,6 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
   public render(): React.ReactElement<ICalendarProps> {
     return (
       <Customizer>
-
-
         <div className={styles.calendar} style={{ backgroundColor: 'white', padding: '20px' }}>
           <WebPartTitle displayMode={this.props.displayMode}
             title={this.props.title}
@@ -375,11 +377,11 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
                 <div>
                   {this.state.isloading ? <Spinner size={SpinnerSize.large} label={strings.LoadingEventsLabel} /> :
                     <div className={styles.container}>
-                      <Category 
-                        catogries={this.state.categories}
-                        selectedCategories={this.state.selectedCategories}
-                        onChangeCategories={this.onChangeCategories}
-                      ></Category>
+                      <WRAEventLocation
+                        locations={this.state.locations}
+                        selectedLocations={this.state.selectedLocations}
+                        onChangeLocations={this.onChangeLocations}
+                      />
                       <MyCalendar
                         dayPropGetter={this.dayPropGetter}
                         localizer={localizer}
