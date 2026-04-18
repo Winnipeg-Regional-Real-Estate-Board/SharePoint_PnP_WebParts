@@ -380,11 +380,6 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
                 <div>
                   {this.state.isloading ? <Spinner size={SpinnerSize.large} label={strings.LoadingEventsLabel} /> :
                     <div className={styles.container}>
-                      <Category 
-                        catogries={this.state.categories}
-                        selectedCategories={this.state.selectedCategories}
-                        onChangeCategories={this.onChangeCategories}
-                      ></Category>
                       <MyCalendar
                         dayPropGetter={this.dayPropGetter}
                         localizer={localizer}

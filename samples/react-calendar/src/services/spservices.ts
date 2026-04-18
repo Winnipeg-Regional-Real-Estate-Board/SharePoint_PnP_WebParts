@@ -451,10 +451,10 @@ export default class spservices {
     try {
       // Get Category Field Choices
       const categoryDropdownOption = await this.getChoiceFieldOptions(siteUrl, listId, 'Category');
-      let categoryColor: { category: string, color: string }[] = [];
+      /*let categoryColor: { category: string, color: string }[] = [];
       for (const cat of categoryDropdownOption) {
         categoryColor.push({ category: cat.text, color: await this.colorGenerate() });
-      }
+      }*/
       let camlQueryExpression = this.setUpQueryExpression(eventStartDate, eventEndDate, categories);
 
       const web = sp.web;
@@ -469,19 +469,18 @@ export default class spservices {
         let event: any = '';
         const mapEvents = async () : Promise<boolean> => {
             for (event of results.Row) {
-              const eventDate = await this.getLocalTime(event.EventDate);
-              const endDate = await this.getLocalTime(event.EndDate);
+              const eventDate = new Date(event.EventDate);
+              const endDate = new Date(event.EndDate);
               const initialsArray: string[] = event.Author[0].title.split(' ');
               const initials: string = initialsArray[0].charAt(0) + initialsArray[initialsArray.length - 1].charAt(0);
-              const userPictureUrl = await this.getUserProfilePictureUrl(`i:0#.f|membership|${event.Author[0].email}`);
               const attendees: number[] = [];
               const first: number = event.Geolocation.indexOf('(') + 1;
               const last: number = event.Geolocation.indexOf(')');
               const geo = event.Geolocation.substring(first, last);
-              const geolocation = geo.split(' ');
+              const geolocation = geo.split(' ');/*
               const CategoryColorValue: any[] = categoryColor.filter((value) => {
                 return value.category == event.Category;
-              });
+              });*/
               const isAllDayEvent: boolean = event["fAllDayEvent.value"] === "1";
 
               for (const attendee of event.ParticipantsPicker) {
@@ -497,11 +496,8 @@ export default class spservices {
                 EventDate: isAllDayEvent ? new Date(event.EventDate.slice(0, -1)) : new Date(eventDate),
                 EndDate: isAllDayEvent ? new Date(event.EndDate.slice(0, -1)) : new Date(endDate),
                 location: event.Location,
-                ownerEmail: event.Author[0].email,
-                ownerPhoto: userPictureUrl ?
-                  `https://outlook.office365.com/owa/service.svc/s/GetPersonaPhoto?email=${event.Author[0].email}&UA=0&size=HR96x96` : '',
                 ownerInitial: initials,
-                color: CategoryColorValue.length > 0 ? CategoryColorValue[0].color : '#1a75ff', // blue default
+                color: /*CategoryColorValue.length > 0 ? CategoryColorValue[0].color :'#1a75ff'// blue default*/ '#e6b295', 
                 ownerName: event.Author[0].title,
                 attendes: attendees,
                 fAllDayEvent: isAllDayEvent,
