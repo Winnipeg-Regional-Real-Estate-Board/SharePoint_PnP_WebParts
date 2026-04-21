@@ -1,6 +1,6 @@
 import { IComboBoxOption } from '@fluentui/react';
 export interface ICategoryProps {
-    catogries: IComboBoxOption[];
+    categories: IComboBoxOption[];
     selectedCategories: IComboBoxOption[];
     onChangeCategories: (onChangeCategories: IComboBoxOption[]) => void;
  

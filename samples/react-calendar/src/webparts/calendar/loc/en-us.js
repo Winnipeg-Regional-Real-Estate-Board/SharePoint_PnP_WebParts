@@ -24,6 +24,8 @@ define([], function () {
     HttpErrorMessage: "Error reading calendar events:",
     CategoryPlaceHolder: "Please select category",
     CategoryLabel: "Category",
+    EventLocationLabel: "Event Location",
+    EventLocationPlaceHolder: "Please select event location",
     EnDateValidationMessage: "start date is greater than end date",
     SartDateValidationMessage: "start date is greater than end date",
     eventSelectDatesLabel: "Show only the events within the following dates",

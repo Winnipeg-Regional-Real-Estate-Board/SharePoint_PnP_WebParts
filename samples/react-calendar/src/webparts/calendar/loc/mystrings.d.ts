@@ -23,6 +23,8 @@ declare interface ICalendarWebPartStrings {
   HttpErrorMessage: string;
   CategoryPlaceHolder: string;
   CategoryLabel: string;
+  EventLocationLabel: string;
+  EventLocationPlaceHolder: string;
   EnDateValidationMessage: string;
   SartDateValidationMessage: string;
   eventSelectDatesLabel: string;

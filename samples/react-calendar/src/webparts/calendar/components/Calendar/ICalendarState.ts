@@ -5,6 +5,8 @@ export interface ICalendarState {
   showDialog: boolean;
   categories: IComboBoxOption[];
   selectedCategories: IComboBoxOption[];
+  eventLocations: IComboBoxOption[];
+  selectedEventLocations: IComboBoxOption[];
   eventData:  IEventData[];
   selectedEvent: IEventData;
   panelMode?: IPanelModelEnum;

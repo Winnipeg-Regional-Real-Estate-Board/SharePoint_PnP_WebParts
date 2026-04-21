@@ -4,7 +4,7 @@ import { ComboBox, IComboBoxOption, SelectableOptionMenuItemType } from '@fluent
 
 export default class Category extends React.PureComponent<ICategoryProps, ICategoryState> {
 
-  private selectableOptions = this.props.catogries.filter(
+  private selectableOptions = this.props.categories.filter(
     option =>
       (option.itemType === SelectableOptionMenuItemType.Normal || option.itemType === undefined) && !option.disabled,
   );
@@ -13,7 +13,7 @@ export default class Category extends React.PureComponent<ICategoryProps, ICateg
     super(props);
     this.state = {
       selectedKeys: this.props.selectedCategories.length == 0 ?
-        [String('selectAll'), ...this.props.catogries.map(o => o.key as string)] :
+        [String('selectAll'), ...this.props.categories.map(o => o.key as string)] :
         [String('selectAll'), ...this.props.selectedCategories.map(o => o.key as string)]
     };
   }
@@ -69,7 +69,7 @@ export default class Category extends React.PureComponent<ICategoryProps, ICateg
           multiSelect
           options={[
             { key: 'selectAll', text: 'Select All', itemType: SelectableOptionMenuItemType.SelectAll },
-            ...this.props.catogries
+            ...this.props.categories
           ]}
           selectedKey={this.state.selectedKeys}
           onChange={this.onChange}

@@ -85,6 +85,7 @@ export default class spservices {
         fAllDayEvent: newEvent.fAllDayEvent,
         fRecurrence: newEvent.fRecurrence,
         Category: newEvent.Category,
+        WRA_EventLocation: newEvent.eventLocation,
         EventType: newEvent.EventType,
         UID: newEvent.UID,
         RecurrenceData: newEvent.RecurrenceData ? await this.deCodeHtmlEntities(newEvent.RecurrenceData) : "",
@@ -112,7 +113,10 @@ export default class spservices {
     try {
       const web = sp.web;
       const event = await web.lists.getById(listId).items.usingCaching().getById(eventId)
-        .select("RecurrenceID", "MasterSeriesItemID", "Id", "ID", "ParticipantsPickerId", "EventType", "Title", "Description", "EventDate", "EndDate", "Location", "Author/SipAddress", "Author/Title", "Geolocation", "fAllDayEvent", "fRecurrence", "RecurrenceData", "RecurrenceData", "Duration", "Category", "UID")
+        .select("RecurrenceID", "MasterSeriesItemID", "Id", "ID", "ParticipantsPickerId", "EventType",
+           "Title", "Description", "EventDate", "EndDate", "Location", "Author/SipAddress", "Author/Title", 
+           "Geolocation", "fAllDayEvent", "fRecurrence", "RecurrenceData", "RecurrenceData", "Duration", 
+           "Category", "UID", "WRA_EventLocation")
         .expand("Author")
         .get();
 
@@ -143,6 +147,7 @@ export default class spservices {
         fRecurrence: event.fRecurrence,
         RecurrenceID: event.RecurrenceID,
         MasterSeriesItemID: event.MasterSeriesItemID,
+        eventLocation: event.WRA_EventLocation,
       };
     } 
     catch (error) {
@@ -182,6 +187,7 @@ export default class spservices {
         Category: updateEvent.Category,
         RecurrenceData: updateEvent.RecurrenceData ? await this.deCodeHtmlEntities(updateEvent.RecurrenceData) : "",
         EventType: updateEvent.EventType,
+        WRA_EventLocation: updateEvent.eventLocation,
       };
 
       if (updateEvent.UID) {
@@ -442,7 +448,7 @@ export default class spservices {
    * @returns {Promise< IEventData[]>}
    * @memberof spservices
    */
-  public async getEvents(siteUrl: string, listId: string, eventStartDate: Date, eventEndDate: Date, categories: IComboBoxOption[]): Promise<IEventData[]> {
+  public async getEvents(siteUrl: string, listId: string, eventStartDate: Date, eventEndDate: Date, eventLocations: IComboBoxOption[]): Promise<IEventData[]> {
 
     let events: IEventData[] = [];
     if (!siteUrl) {
@@ -450,12 +456,20 @@ export default class spservices {
     }
     try {
       // Get Category Field Choices
-      const categoryDropdownOption = await this.getChoiceFieldOptions(siteUrl, listId, 'Category');
+      //const categoryDropdownOption = await this.getChoiceFieldOptions(siteUrl, listId, 'Category');
       /*let categoryColor: { category: string, color: string }[] = [];
       for (const cat of categoryDropdownOption) {
         categoryColor.push({ category: cat.text, color: await this.colorGenerate() });
       }*/
-      let camlQueryExpression = this.setUpQueryExpression(eventStartDate, eventEndDate, categories);
+
+      // Get Event Location Field Choices
+      const eventLocationDropdownOption = await this.getChoiceFieldOptions(siteUrl, listId, Constants.EventLocationColumn);
+      let eventLocationColor: { eventLocation: string, color: string }[] = [];
+      for (const loc of eventLocationDropdownOption) {
+        eventLocationColor.push({ eventLocation: loc.text, color: await this.colorGenerate() });
+       }
+
+      let camlQueryExpression = this.setUpQueryExpression(eventStartDate, eventEndDate, eventLocations, eventLocationDropdownOption);
 
       const web = sp.web;
       const results = await web.lists.getById(listId).usingCaching().renderListDataAsStream(
@@ -481,6 +495,9 @@ export default class spservices {
               const CategoryColorValue: any[] = categoryColor.filter((value) => {
                 return value.category == event.Category;
               });*/
+              const EventLocationColorValue: any[] = eventLocationColor.filter((value) => {
+                return value.eventLocation == event.WRA_EventLocation;
+               });
               const isAllDayEvent: boolean = event["fAllDayEvent.value"] === "1";
 
               for (const attendee of event.ParticipantsPicker) {
@@ -497,12 +514,13 @@ export default class spservices {
                 EndDate: isAllDayEvent ? new Date(event.EndDate.slice(0, -1)) : new Date(endDate),
                 location: event.Location,
                 ownerInitial: initials,
-                color: /*CategoryColorValue.length > 0 ? CategoryColorValue[0].color :'#1a75ff'// blue default*/ '#e6b295', 
+                color: EventLocationColorValue.length > 0 ? EventLocationColorValue[0].color :'#e6b295', 
                 ownerName: event.Author[0].title,
                 attendes: attendees,
                 fAllDayEvent: isAllDayEvent,
                 geolocation: { Longitude: parseFloat(geolocation[0]), Latitude: parseFloat(geolocation[1]) },
                 Category: event.Category,
+                eventLocation: event.WRA_EventLocation,
                 Duration: event.Duration,
                 RecurrenceData: event.RecurrenceData ? await this.deCodeHtmlEntities(event.RecurrenceData) : "",
                 fRecurrence: event.fRecurrence,
@@ -544,19 +562,41 @@ export default class spservices {
     }
   }
 
+  private recurseAndQuery(
+    conditionQuery: string,
+    keys: string[]
+  ){
+    if(keys.length === 0) return "";
+    if(keys.length === 1) return Text.format(conditionQuery, keys[0]);
+
+    return Text.format(Constants.AndConditionFormat, Text.format(conditionQuery, keys[0]), this.recurseAndQuery(conditionQuery, keys.slice(1)));
+  }
+
+  private recurseOrQuery(
+    conditionQuery: string,
+    keys: string[]
+  ){
+    if(keys.length === 0) return "";
+    if(keys.length === 1) return Text.format(conditionQuery, keys[0]);
+
+    return Text.format(Constants.OrConditionFormat, Text.format(conditionQuery, keys[0]), this.recurseOrQuery(conditionQuery, keys.slice(1)));
+  }
+
   /**
    *
    * @private
    * @param {Date} eventStartDate
    * @param {Date} eventEndDate
-   * @param {IOption[]} departments
+   * @param {IComboBoxOption[]} eventLocations
+   * @param {{ key: string, text: string }[]} allEventLocations
    * @returns {string} camlQuery
    * @memberof spservices
    */
   private setUpQueryExpression(
     eventStartDate: Date,
     eventEndDate: Date,
-    categories: IComboBoxOption[]
+    eventLocations: IComboBoxOption[],
+    allEventLocations: { key: string, text: string }[]
   ) {
     let camlQuery = `
     <View>
@@ -577,6 +617,7 @@ export default class spservices {
       <FieldRef Name='EventType'/>
       <FieldRef Name='UID' />
       <FieldRef Name='fRecurrence' />
+      <FieldRef Name='WRA_EventLocation' />
     </ViewFields>
       <Query>
         <Where>
@@ -598,63 +639,72 @@ export default class spservices {
       <RowLimit Paged=\"FALSE\">2000</RowLimit>
       </View>`;
 
-    // "No Category" option handling
-    const hasNoCategoryOption = categories.some(category => category.key === '__NO_CATEGORY__');
-    const actualCategories = hasNoCategoryOption ? categories.filter(category => category.key !== '__NO_CATEGORY__') : categories;
+    // "Others" option handling
+    const hasOthersOption = eventLocations.some(location => location.key === '__OTHERS_EVENT_LOCATION__');
+    const actualEventLocations = hasOthersOption ? eventLocations.filter(location => location.key !== '__OTHERS_EVENT_LOCATION__') : eventLocations;
+    // Get a list of event location keys that are not selected and also remove "Others" option from the list
+    const excludeEventLocations = allEventLocations.filter(loc => !eventLocations.some(selected => selected.key === loc.key) && loc.key !== '__OTHERS_EVENT_LOCATION__').map(loc => loc.key);
 
-    let categoryCondition = `
+    let eventLocationCondition = `
         <Eq>
-          <FieldRef Name='Category' />
+          <FieldRef Name='WRA_EventLocation' />
           <Value Type='Choice'>{0}</Value>
         </Eq>`;
 
-    let noCategoryCondition = `
-        <IsNull>
-          <FieldRef Name='Category' />
-        </IsNull>`;
+    let excludeEventLocationCondition = `
+        <Neq>
+          <FieldRef Name='WRA_EventLocation' />
+          <Value Type='Choice'>{0}</Value>
+        </Neq>`;
 
-    const deptsLength: number = actualCategories.length;
+    const eventLocationsCount: number = actualEventLocations.length;
     let queryResult: string = "";
 
-    // If "No Category" option is selected, include events with no category and events that match the selected categories
-    if (hasNoCategoryOption) {
-      if (deptsLength > 0) {
-        let orCondition: string = `${Constants.OrConditionStart}{0}{1}${Constants.OrConditionEnd}`;
-        queryResult = Text.format(orCondition, noCategoryCondition, Text.format(categoryCondition, actualCategories[0].key));
-        for (let i = 1; i < actualCategories.length; i++) {
-          const category = actualCategories[i];
-          queryResult = Text.format(orCondition, Text.format(categoryCondition, category.key), queryResult);
+    // If "Others" option is selected, include events with no event location and events that match the selected event locations
+    if (hasOthersOption) {
+      // Build excluding conditions first
+      let excludeConditions: string = this.recurseAndQuery(excludeEventLocationCondition, excludeEventLocations);
+      if (eventLocationsCount > 0) {
+        if (excludeConditions) {
+          queryResult = Text.format(Constants.OrConditionFormat, excludeConditions, Text.format(eventLocationCondition, actualEventLocations[0].key));
+        } else {
+          // Every event location is selected including "Others", so no need to filter for event location, just return all events within the date range
+          return Text.format(camlQuery, "", queryResult, "");
+        }
+        
+        for (let i = 1; i < actualEventLocations.length; i++) {
+          const location = actualEventLocations[i];
+          queryResult = Text.format(Constants.OrConditionFormat, Text.format(eventLocationCondition, location.key), queryResult);
         }
         queryResult = Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
       } else {
-        // Only "No Category" option is selected, so filter for items with no category
-        queryResult = Text.format(camlQuery, Constants.AndConditionStart, noCategoryCondition, Constants.AndConditionEnd);
+        // Only "Others" option is selected, so filter for items with other event location
+        queryResult = Text.format(camlQuery, Constants.AndConditionStart, excludeConditions, Constants.AndConditionEnd);
       }
       return queryResult;
     }
 
-    // "No Category" option is not selected, proceed with filtering based on original selected categories only
-    if (deptsLength > 0) {
-      if (deptsLength == 1) {
-        return Text.format(camlQuery, Constants.AndConditionStart, Text.format(categoryCondition, categories[0].key), Constants.AndConditionEnd);
-      } else {
-        let orCondition: string = `${Constants.OrConditionStart}{0}{1}${Constants.OrConditionEnd}`;
-        queryResult = Text.format(orCondition, Text.format(categoryCondition, categories[0].key), Text.format(categoryCondition, categories[1].key));
-
-        for (let i = 2; i < categories.length; i++) {
-          const category = categories[i];
-          queryResult = Text.format(orCondition, Text.format(categoryCondition, category.key), queryResult);
-        }
+    // "Others" option is not selected, proceed with filtering based on original selected Event Locations only
+    if (eventLocationsCount > 0) {
+      if (eventLocationsCount == 1) {
+        return Text.format(camlQuery, Constants.AndConditionStart, Text.format(eventLocationCondition, eventLocations[0].key), Constants.AndConditionEnd);
       }
+
+      queryResult = Text.format(Constants.OrConditionFormat, Text.format(eventLocationCondition, eventLocations[0].key), Text.format(eventLocationCondition, eventLocations[1].key));
+
+      for (let i = 2; i < eventLocations.length; i++) {
+        const location = eventLocations[i];
+        queryResult = Text.format(Constants.OrConditionFormat, Text.format(eventLocationCondition, location.key), queryResult);
+      }
+      
       return Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
     }
 
-    // No categories selected, return all events
+    // No location selected, return all events
     return Text.format(camlQuery, "", queryResult, "");
   }
 
   /**
-   *
    * @private
    * @param {string} siteUrl
    * @returns

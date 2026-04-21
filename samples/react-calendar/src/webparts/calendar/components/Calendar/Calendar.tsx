@@ -52,6 +52,7 @@ import { IPanelModelEnum } from '../../../../controls/Event/IPanelModeEnum';
 import { IEventData } from './../../../../services/IEventData';
 import { IUserPermissions } from './../../../../services/IUserPermissions';
 import Category from '../Category/Category';
+import EventLocation from '../Custom/EventLocation/EventLocation';
 import { IOption } from '../../../../services/IOption';
 
 
@@ -73,6 +74,8 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
       showDialog: false,
       categories: [],
       selectedCategories: [],
+      eventLocations: [],
+      selectedEventLocations: [],
       eventData: [],
       selectedEvent: undefined,
       isloading: true,
@@ -84,13 +87,14 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
     this.onSelectEvent = this.onSelectEvent.bind(this);
     this.onSelectSlot = this.onSelectSlot.bind(this);
     this.onChangeCategories = this.onChangeCategories.bind(this);
+    this.onChangeEventLocations = this.onChangeEventLocations.bind(this);
     this.spService = new spservices(this.props.context);
     moment.locale(this.props.context.pageContext.cultureInfo.currentUICultureName);
   }
 
   /**
    * @private
-   * @param {*} selectedCatogries
+   * @param {*} selectedCategories
    * @memberof Calendar
    */
   private async onChangeCategories(selectedCategories: IComboBoxOption[]) {
@@ -107,7 +111,27 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
       });
     }
   }
-   
+  
+  /**
+   * @private
+   * @param {*} selectedEventLocations
+   * @memberof Calendar
+   */
+  private async onChangeEventLocations(selectedEventLocations: IComboBoxOption[]) {
+    try {
+      this.setState({
+        selectedEventLocations: selectedEventLocations
+      });
+      await this.loadEvents();
+    } catch (error) {
+      this.setState({
+        hasError: true,
+        errorMessage: error.message,
+        isloading: false,
+      });
+    }
+  }
+
   private onDocumentCardClick(ev: React.SyntheticEvent<HTMLElement, Event>) {
     ev.preventDefault();
     ev.stopPropagation();
@@ -147,13 +171,14 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
       this.userListPermissions = await this.spService.getUserPermissions(this.props.siteUrl, this.props.list);
 
       let eventsData: IEventData[] = [];
-      if (this.state.selectedCategories.length > 0) { 
+      // Note: If we want to filter by categories and event locations, add both checks and add parameter to the service call
+      if (this.state.selectedEventLocations.length > 0) { 
         eventsData = await this.spService.getEvents(
           escape(this.props.siteUrl),
           escape(this.props.list),
           this.props.eventStartDate.value,
           this.props.eventEndDate.value,
-          this.state.selectedCategories
+          this.state.selectedEventLocations
         );
       }
 
@@ -167,13 +192,18 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
    */
   public async componentDidMount() {
     const categories: IOption[] = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.list, 'Category');
+    const eventLocations: IOption[] = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.list, 'WRA_EventLocation');
     // Add a virtual option for "No Category"
     const noCategoryOption: IOption = { key: '__NO_CATEGORY__', text: 'No Category' };
-    const extentedCategories = [noCategoryOption, ...categories];
+    const extendedCategories = [noCategoryOption, ...categories];
+
+    // Add a virtual option for "Others" Event Location. This will show events that are not in the defined list of Event Locations.
+    const othersEventLocationOption: IOption = { key: '__OTHERS_EVENT_LOCATION__', text: 'Others' };
+    const extendedEventLocations = [...eventLocations, othersEventLocationOption];
 
     // Default to select all categories - including the "No Category" option
 
-    this.setState({ isloading: true, categories: extentedCategories, selectedCategories: extentedCategories});
+    this.setState({ isloading: true, categories: extendedCategories, selectedCategories: extendedCategories, eventLocations: extendedEventLocations, selectedEventLocations: extendedEventLocations});
     await this.loadEvents();
     this.setState({ isloading: false });
   }
@@ -380,6 +410,11 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
                 <div>
                   {this.state.isloading ? <Spinner size={SpinnerSize.large} label={strings.LoadingEventsLabel} /> :
                     <div className={styles.container}>
+                      <EventLocation
+                        eventLocations={this.state.eventLocations}
+                        selectedEventLocations={this.state.selectedEventLocations}
+                        onChangeEventLocations={this.onChangeEventLocations}
+                      />
                       <MyCalendar
                         dayPropGetter={this.dayPropGetter}
                         localizer={localizer}

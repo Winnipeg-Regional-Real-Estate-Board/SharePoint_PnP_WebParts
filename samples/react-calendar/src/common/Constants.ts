@@ -3,11 +3,15 @@ import { IDatePickerStrings } from "office-ui-fabric-react";
 
 export const Constants = {
   CategoryColumn: "Category",
+  EventLocationColumn: "WRA_EventLocation",
+  EventLocationOthersOption: "__OTHERS_EVENT_LOCATION__",
   MetaDataFieldType: "SP.Taxonomy.TaxonomyFieldValue",
   EventResult_LocalStorage: "eventResult",
   CalendarEventsWithLocalTime_LocalStorage: "calendarEventsWithLocalTime",
+  AndConditionFormat: "<And>{0}{1}</And>",
   AndConditionStart: "<And>",
   AndConditionEnd: "</And>",
+  OrConditionFormat: "<Or>{0}{1}</Or>",
   OrConditionStart: "<Or>",
   OrConditionEnd: "</Or>",
   latitude: 58.485601,

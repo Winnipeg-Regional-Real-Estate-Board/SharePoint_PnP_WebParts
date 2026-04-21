@@ -7,15 +7,11 @@ import * as moment from 'moment';
 import { XMLParser } from "fast-xml-parser";
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { PeoplePicker, PrincipalType } from "@pnp/spfx-controls-react/lib/PeoplePicker";
-import {
-  Panel,
-  PanelType,
-  TextField,
-  Label
-} from 'office-ui-fabric-react';
 import { IEventData } from '../../services/IEventData';
 import { IUserPermissions } from '../../services/IUserPermissions';
 import {
+  ComboBox,
+  IComboBoxOption,
   DatePicker,
   IDatePickerStrings,
   Dropdown,
@@ -30,7 +26,11 @@ import {
   Dialog,
   DialogType,
   DialogFooter,
-  Toggle
+  Toggle,
+  Panel,
+  PanelType,
+  TextField,
+  Label
 }
   from 'office-ui-fabric-react';
 
@@ -45,6 +45,7 @@ import { Map, ICoordinates, MapType } from "@pnp/spfx-controls-react/lib/Map";
 import { EventRecurrenceInfo } from '../../controls/EventRecurrenceInfo/EventRecurrenceInfo';
 import { getGUID } from '@pnp/common';
 import { toLocaleShortDateString } from '../../utils/dateUtils';
+import { IComboBox } from '@fluentui/react';
 const format = require('string-format');
 
 const DayPickerStrings: IDatePickerStrings = {
@@ -70,6 +71,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
   private returnedRecurrenceInfo: { recurrenceData: string, eventDate: Date, endDate: Date } = undefined;
 
   private categoryDropdownOption: IDropdownOption[] = [];
+  private eventLocationDropdownOption: IComboBoxOption[] = [];
 
   public constructor(props) {
     super(props);
@@ -130,6 +132,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
     this.closeDialog = this.closeDialog.bind(this);
     this.confirmDelete = this.confirmDelete.bind(this);
     this.onCategoryChanged = this.onCategoryChanged.bind(this);
+    this.onEventLocationChanged = this.onEventLocationChanged.bind(this);
     this.onEditRecurrence = this.onEditRecurrence.bind(this);
     this.returnRecurrenceInfo = this.returnRecurrenceInfo.bind(this);
     this.spService = new spservices(this.props.context);
@@ -269,6 +272,11 @@ export class Event extends React.Component<IEventProps, IEventState> {
     const userListPermissions: IUserPermissions = await this.spService.getUserPermissions(this.props.siteUrl, this.props.listId);
     // Load Categories
     this.categoryDropdownOption = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.listId, 'Category');
+    // Load Event Locations & add event EventLocation onto eventLocationDropdownOption if not exist
+    this.eventLocationDropdownOption = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.listId, 'WRA_EventLocation');
+    if (event && event.eventLocation && !this.eventLocationDropdownOption.some(opt => opt.text === event.eventLocation)) {
+      this.eventLocationDropdownOption.push({ key: event.eventLocation, text: event.eventLocation });
+    }
     // Edit Mode ?
     if (this.props.panelMode == IPanelModelEnum.edit && event) {
 
@@ -446,6 +454,29 @@ export class Event extends React.Component<IEventProps, IEventState> {
   private onCategoryChanged(ev: React.FormEvent<HTMLDivElement>, item: IDropdownOption): void {
 
     this.setState({ eventData: { ...this.state.eventData, Category: item.text } });
+  }
+
+   /**
+   *
+   * @private
+   * @param {React.FormEvent<HTMLDivElement>} ev
+   * @param {IDropdownOption} item
+   * @memberof Event
+   */
+  private onEventLocationChanged(ev: React.FormEvent<IComboBox>, option?: IComboBoxOption, index?: number, value?: string): void {
+    const selectedLocation = option ? option.text : value;
+    // Add the custom value to the options if it's not already present
+    if (
+      value &&
+      !this.eventLocationDropdownOption.some(opt => opt.text === value)
+    ) {
+      this.eventLocationDropdownOption = [
+        ...this.eventLocationDropdownOption,
+        { key: value, text: value }
+      ];
+    }
+
+    this.setState({ eventData: { ...this.state.eventData, eventLocation: selectedLocation } });
   }
 
   /**
@@ -954,6 +985,18 @@ export class Event extends React.Component<IEventProps, IEventState> {
                     onChange={this.onCategoryChanged}
                     options={this.categoryDropdownOption}
                     placeholder={strings.CategoryPlaceHolder}
+                    disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
+                  />
+                </div>
+                <div>
+                  <ComboBox
+                    label={strings.EventLocationLabel}
+                    selectedKey={this.state.eventData && this.state.eventData.eventLocation ? this.state.eventData.eventLocation : ''}
+                    onChange={this.onEventLocationChanged}
+                    options={this.eventLocationDropdownOption}
+                    placeholder={strings.EventLocationPlaceHolder}
+                    allowFreeform={true}
+                    autoComplete='on'
                     disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
                   />
                 </div>
