@@ -4,6 +4,7 @@ export interface IEventData {
   title: string;
   Description?: any;
   location?: string;
+  WRA_EventLocation?: string;
   EventDate: Date;
   EndDate: Date;
   color?: string;

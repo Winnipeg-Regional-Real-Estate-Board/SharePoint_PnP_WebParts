@@ -100,6 +100,7 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
       });
       await this.loadEvents();
     } catch (error) {
+    } catch (error: any) {
       this.setState({
         hasError: true,
         errorMessage: error.message,
@@ -159,7 +160,7 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
 
       this.setState({ eventData: eventsData, hasError: false, errorMessage: "" });
     } catch (error) {
-      this.setState({ hasError: true, errorMessage: error.message, isloading: false });
+      this.setState({ hasError: true, errorMessage: this.getErrorMessage(error), isloading: false });
     }
   }
   /**
@@ -203,6 +204,14 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
       this.setState({ isloading: false });
     }
   }
+
+  private getErrorMessage(error: any): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return String(error);
+  }
+
   /**
    * @private
    * @param {*} { event }

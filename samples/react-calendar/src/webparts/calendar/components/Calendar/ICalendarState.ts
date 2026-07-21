@@ -3,8 +3,8 @@ import { IEventData } from './../../../../services/IEventData';
 import { IComboBoxOption } from '@fluentui/react';
 export interface ICalendarState {
   showDialog: boolean;
-  categories: IComboBoxOption[];
-  selectedCategories: IComboBoxOption[];
+  locations: IComboBoxOption[];
+  selectedLocations: IComboBoxOption[];
   eventData:  IEventData[];
   selectedEvent: IEventData;
   panelMode?: IPanelModelEnum;
