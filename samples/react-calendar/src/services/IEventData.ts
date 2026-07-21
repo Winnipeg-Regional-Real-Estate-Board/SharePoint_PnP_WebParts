@@ -3,6 +3,7 @@ export interface IEventData {
   ID?: number;
   title: string;
   Description?: any;
+  Deleted?: boolean;
   location?: string;
   WRA_EventLocation?: string;
   EventDate: Date;

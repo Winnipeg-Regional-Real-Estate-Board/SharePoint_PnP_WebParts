@@ -3,7 +3,7 @@ import styles from './Event.module.scss';
 import * as strings from 'CalendarWebPartStrings';
 import { IEventProps } from './IEventProps';
 import { IEventState } from './IEventState';
-import * as moment from 'moment';
+import moment from 'moment';
 import { XMLParser } from "fast-xml-parser";
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { PeoplePicker, PrincipalType } from "@pnp/spfx-controls-react/lib/PeoplePicker";
@@ -20,6 +20,7 @@ import {
   IDatePickerStrings,
   Dropdown,
   IDropdownOption,
+  Checkbox,
   DefaultButton,
   PrimaryButton,
   IPersonaProps,
@@ -45,6 +46,7 @@ import { Map, ICoordinates, MapType } from "@pnp/spfx-controls-react/lib/Map";
 import { EventRecurrenceInfo } from '../../controls/EventRecurrenceInfo/EventRecurrenceInfo';
 import { getGUID } from '@pnp/common';
 import { toLocaleShortDateString } from '../../utils/dateUtils';
+import { Constants } from '../../common/Constants';
 const format = require('string-format');
 
 const DayPickerStrings: IDatePickerStrings = {
@@ -65,11 +67,12 @@ const DayPickerStrings: IDatePickerStrings = {
 export class Event extends React.Component<IEventProps, IEventState> {
   private spService: spservices = null;
   private attendees: IPersonaProps[] = [];
-  private latitude: number = 41.1931819;
-  private longitude: number = -8.4897452;
+  private latitude: number = Constants.latitude;
+  private longitude: number = Constants.longitude;
   private returnedRecurrenceInfo: { recurrenceData: string, eventDate: Date, endDate: Date } = undefined;
 
   private categoryDropdownOption: IDropdownOption[] = [];
+  private eventLocationDropdownOption: IDropdownOption[] = [];
 
   public constructor(props) {
     super(props);
@@ -109,6 +112,9 @@ export class Event extends React.Component<IEventProps, IEventState> {
       showRecurrenceSeriesInfo: false,
       newRecurrenceEvent: false,
       recurrenceAction: 'display',
+      hasDeletedField: false,
+      hasWraEventLocationField: false,
+      customEventLocation: '',
       userPermissions: { hasPermissionAdd: false, hasPermissionDelete: false, hasPermissionEdit: false, hasPermissionView: false },
     };
     // local copia of props
@@ -130,6 +136,9 @@ export class Event extends React.Component<IEventProps, IEventState> {
     this.closeDialog = this.closeDialog.bind(this);
     this.confirmDelete = this.confirmDelete.bind(this);
     this.onCategoryChanged = this.onCategoryChanged.bind(this);
+    this.onEventLocationChanged = this.onEventLocationChanged.bind(this);
+    this.onCustomEventLocationChanged = this.onCustomEventLocationChanged.bind(this);
+    this.onDeletedChanged = this.onDeletedChanged.bind(this);
     this.onEditRecurrence = this.onEditRecurrence.bind(this);
     this.returnRecurrenceInfo = this.returnRecurrenceInfo.bind(this);
     this.spService = new spservices(this.props.context);
@@ -201,10 +210,16 @@ export class Event extends React.Component<IEventProps, IEventState> {
     const end = moment(endDateTime, 'YYYY/MM/DD HH:mm').toLocaleString();
     eventData.EndDate = new Date(end);
 
+    // Custom event location overrides selected dropdown value when provided.
+    const customEventLocation = (this.state.customEventLocation || '').trim();
+    if (this.state.hasWraEventLocationField && customEventLocation) {
+      eventData.WRA_EventLocation = customEventLocation;
+    }
+
     // get Geolocation
     eventData.geolocation = { Latitude: this.latitude, Longitude: this.longitude };
     const locationInfo = await this.spService.getGeoLactionName(this.latitude, this.longitude);
-    eventData.location = locationInfo ? locationInfo.display_name : 'N/A';
+    eventData.location = locationInfo && locationInfo.display_name ? locationInfo.display_name : (eventData.location || '');
 
     // get Attendees
     if (!eventData.attendes) { //vinitialize if no attendees
@@ -236,7 +251,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
       this.setState({ isSaving: false });
       this.props.onDissmissPanel(true);
     } catch (error) {
-      this.setState({ hasError: true, errorMessage: error.message, isSaving: false });
+      this.setState({ hasError: true, errorMessage: error instanceof Error ? error.message : String(error), isSaving: false });
     }
   }
 
@@ -268,7 +283,20 @@ export class Event extends React.Component<IEventProps, IEventState> {
     // chaeck User list Permissions
     const userListPermissions: IUserPermissions = await this.spService.getUserPermissions(this.props.siteUrl, this.props.listId);
     // Load Categories
-    this.categoryDropdownOption = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.listId, 'Category');
+    this.categoryDropdownOption = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.listId, Constants.CategoryColumn);
+
+    // Check optional fields and load choice options only when those fields exist.
+    const hasDeletedField: boolean = await this.spService.fieldExists(this.props.siteUrl, this.props.listId, Constants.DeletedField.InternalName);
+    const hasWraEventLocationField: boolean = await this.spService.fieldExists(this.props.siteUrl, this.props.listId, Constants.EventLocation.InternalName);
+    this.eventLocationDropdownOption = hasWraEventLocationField
+      ? (await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.listId, Constants.EventLocation.InternalName))
+          .map((option) => ({ key: option.key, text: option.text }))
+      : [];
+
+    const normalize = (value: string): string => value ? value.trim().toLowerCase() : '';
+    const customEventLocation = (event && event.WRA_EventLocation && !this.eventLocationDropdownOption.some((option) =>
+      normalize(option.key.toString()) === normalize(event.WRA_EventLocation)
+    )) ? event.WRA_EventLocation : '';
     // Edit Mode ?
     if (this.props.panelMode == IPanelModelEnum.edit && event) {
 
@@ -322,7 +350,10 @@ export class Event extends React.Component<IEventProps, IEventState> {
         siteRegionalSettings: siteRegionalSettings,
         locationLatitude: this.latitude,
         locationLongitude: this.longitude,
-        recurrenceDescription: recurrenceInfo
+        recurrenceDescription: recurrenceInfo,
+        hasDeletedField: hasDeletedField,
+        hasWraEventLocationField: hasWraEventLocationField,
+        customEventLocation: customEventLocation
       });
     } else {
       editorState = EditorState.createEmpty();
@@ -333,7 +364,10 @@ export class Event extends React.Component<IEventProps, IEventState> {
         userPermissions: userListPermissions,
         isloading: false,
         siteRegionalSettings: siteRegionalSettings,
-        eventData: { ...event, EventType: "0" },
+        eventData: { ...event, EventType: "0", Deleted: false },
+        hasDeletedField: hasDeletedField,
+        hasWraEventLocationField: hasWraEventLocationField,
+        customEventLocation: '',
       });
     }
   }
@@ -448,6 +482,21 @@ export class Event extends React.Component<IEventProps, IEventState> {
     this.setState({ eventData: { ...this.state.eventData, Category: item.text } });
   }
 
+  private onEventLocationChanged(ev: React.FormEvent<HTMLDivElement>, item: IDropdownOption): void {
+    this.setState({
+      eventData: { ...this.state.eventData, WRA_EventLocation: item ? item.key.toString() : undefined },
+      customEventLocation: ''
+    });
+  }
+
+  private onCustomEventLocationChanged(ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, value?: string): void {
+    this.setState({ customEventLocation: value || '' });
+  }
+
+  private onDeletedChanged(ev?: React.FormEvent<HTMLElement | HTMLInputElement>, checked?: boolean): void {
+    this.setState({ eventData: { ...this.state.eventData, Deleted: !!checked } });
+  }
+
   /**
    *
    * @private
@@ -492,7 +541,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
       this.setState({ isDeleting: false });
       this.props.onDissmissPanel(true);
     } catch (error) {
-      this.setState({ hasError: true, errorMessage: error.message, isDeleting: false, displayDialog: false });
+      this.setState({ hasError: true, errorMessage: error instanceof Error ? error.message : String(error), isDeleting: false, displayDialog: false });
     }
   }
 
@@ -566,7 +615,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
     this.latitude = coordinates.latitude;
     this.longitude = coordinates.longitude;
     const locationInfo = await this.spService.getGeoLactionName(this.latitude, this.longitude);
-    this.setState({ eventData: { ...this.state.eventData, location: locationInfo.display_name } });
+    this.setState({ eventData: { ...this.state.eventData, location: locationInfo && locationInfo.display_name ? locationInfo.display_name : (this.state.eventData.location || '') } });
   }
 
   /**
@@ -862,7 +911,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
       }
     } catch (error) {
       // Handle parsing errors
-      throw new Error(`Error parsing recurrence data: ${error.message}`);
+      throw new Error(`Error parsing recurrence data: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -957,6 +1006,39 @@ export class Event extends React.Component<IEventProps, IEventState> {
                     disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
                   />
                 </div>
+                {
+                  this.state.hasWraEventLocationField &&
+                  <div>
+                    <Dropdown
+                      label={Constants.EventLocation.DisplayName}
+                      selectedKey={this.state.eventData && this.state.eventData.WRA_EventLocation && this.eventLocationDropdownOption.some((option) =>
+                        option.key.toString().toLowerCase() === this.state.eventData.WRA_EventLocation.toString().toLowerCase()
+                      ) ? this.state.eventData.WRA_EventLocation : undefined}
+                      onChange={this.onEventLocationChanged}
+                      options={this.eventLocationDropdownOption}
+                      placeholder={strings.CategoryPlaceHolder}
+                      disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
+                    />
+                    <TextField
+                      label="Custom Event Location"
+                      value={this.state.customEventLocation || ''}
+                      onChange={this.onCustomEventLocationChanged}
+                      placeholder="Enter your own location"
+                      disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
+                    />
+                  </div>
+                }
+                {
+                  this.state.hasDeletedField &&
+                  <div style={{ marginTop: 8 }}>
+                    <Checkbox
+                      label={Constants.DeletedField.DisplayName}
+                      checked={this.state.eventData && this.state.eventData.Deleted ? this.state.eventData.Deleted : false}
+                      onChange={this.onDeletedChanged}
+                      disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
+                    />
+                  </div>
+                }
                 <div style={{ display: 'inline-block', verticalAlign: 'top', paddingRight: 10 }}>
                   <DatePicker
                     isRequired={false}

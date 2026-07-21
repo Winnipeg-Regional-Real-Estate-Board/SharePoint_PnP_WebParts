@@ -84,3 +84,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.with-filter, .no-filter {
+  height: 100%;
+}
+
+.with-filter .rbc-calendar {
+  height: 90% !important;
+}
+
+.no-filter .rbc-calendar {
+  height: 100% !important;
+}

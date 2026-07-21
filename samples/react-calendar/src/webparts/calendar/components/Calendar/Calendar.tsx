@@ -3,7 +3,7 @@ import styles from './Calendar.module.scss';
 import { ICalendarProps } from './ICalendarProps';
 import { ICalendarState } from './ICalendarState';
 import { escape } from '@microsoft/sp-lodash-subset';
-import * as moment from 'moment';
+import moment from 'moment';
 import * as strings from 'CalendarWebPartStrings';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 require('./calendar.css');
@@ -52,7 +52,9 @@ import { IPanelModelEnum } from '../../../../controls/Event/IPanelModeEnum';
 import { IEventData } from './../../../../services/IEventData';
 import { IUserPermissions } from './../../../../services/IUserPermissions';
 import WRAEventLocation from '../WRA_EventLocation/WRAEventLocation';
+import EventLocationLegend from '../EventLocationLegend/EventLocationLegend';
 import { IOption } from '../../../../services/IOption';
+import { Constants } from '../../../../common/Constants';
 
 
 //const localizer = BigCalendar.momentLocalizer(moment);
@@ -146,33 +148,46 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
 
       this.userListPermissions = await this.spService.getUserPermissions(this.props.siteUrl, this.props.list);
 
-      let eventsData: IEventData[] = [];
-      if (this.state.selectedLocations.length > 0) { 
-        eventsData = await this.spService.getEvents(
-          escape(this.props.siteUrl),
-          escape(this.props.list),
-          this.props.eventStartDate.value,
-          this.props.eventEndDate.value,
-          this.state.selectedLocations
-        );
-      }
+      const eventsData: IEventData[] = await this.spService.getEvents(
+        escape(this.props.siteUrl),
+        escape(this.props.list),
+        this.props.eventStartDate.value,
+        this.props.eventEndDate.value,
+        this.state.selectedLocations
+      );
 
       this.setState({ eventData: eventsData, hasError: false, errorMessage: "" });
     } catch (error) {
       this.setState({ hasError: true, errorMessage: this.getErrorMessage(error), isloading: false });
     }
   }
+
+  private async initializeLocationFilter(): Promise<void> {
+    if (!this.props.list || !this.props.siteUrl) {
+      this.setState({ locations: [], selectedLocations: [] });
+      return;
+    }
+
+    const hasWraEventLocationField = await this.spService.fieldExists(this.props.siteUrl, this.props.list, 'WRA_EventLocation');
+    if (!hasWraEventLocationField) {
+      this.setState({ locations: [], selectedLocations: [] });
+      return;
+    }
+
+    const locations: IOption[] = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.list, 'WRA_EventLocation');
+    const otherLocationOption: IOption = Constants.EventLocation.OthersOption;
+    const extendedLocations = [...locations, otherLocationOption];
+
+    // Default to select all locations, including the virtual "Others" option.
+    this.setState({ locations: extendedLocations, selectedLocations: extendedLocations });
+  }
+
   /**
    * @memberof Calendar
    */
   public async componentDidMount() {
-    const locations: IOption[] = await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.list, 'WRA_EventLocation');
-    // Add a virtual option for "No Location"
-    const noLocationOption: IOption = { key: '__NO_LOCATION__', text: 'No Location' };
-    const extendedLocations = [noLocationOption, ...locations];
-
-    // Default to select all locations - including the "No Location" option
-    this.setState({ isloading: true, locations: extendedLocations, selectedLocations: extendedLocations});
+    this.setState({ isloading: true });
+    await this.initializeLocationFilter();
     await this.loadEvents();
     this.setState({ isloading: false });
   }
@@ -199,6 +214,9 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
     // Get  Properties change
     if (prevProps.list !== this.props.list || this.props.eventStartDate.value !== prevProps.eventStartDate.value || this.props.eventEndDate.value !== prevProps.eventEndDate.value) {
       this.setState({ isloading: true });
+      if (prevProps.list !== this.props.list) {
+        await this.initializeLocationFilter();
+      }
       await this.loadEvents();
       this.setState({ isloading: false });
     }
@@ -385,45 +403,60 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
                 <div>
                   {this.state.isloading ? <Spinner size={SpinnerSize.large} label={strings.LoadingEventsLabel} /> :
                     <div className={styles.container}>
-                      <WRAEventLocation
-                        locations={this.state.locations}
-                        selectedLocations={this.state.selectedLocations}
-                        onChangeLocations={this.onChangeLocations}
-                      />
-                      <MyCalendar
-                        dayPropGetter={this.dayPropGetter}
-                        localizer={localizer}
-                        selectable
-                        events={this.state.eventData}
-                        startAccessor="EventDate"
-                        endAccessor="EndDate"
-                        eventPropGetter={this.eventStyleGetter}
-                        onSelectSlot={this.onSelectSlot}
-                        components={{
-                          event: this.renderEvent
-                        }}
-                        onSelectEvent={this.onSelectEvent}
-                        defaultDate={moment().startOf('day').toDate()}
-                        views={{
-                          day: true,
-                          week: true,
-                          month: true,
-                          agenda: true,
-                          work_week: Year
-                        }}
-                        messages={
-                          {
-                            'today': strings.todayLabel,
-                            'previous': strings.previousLabel,
-                            'next': strings.nextLabel,
-                            'month': strings.monthLabel,
-                            'week': strings.weekLabel,
-                            'day': strings.dayLable,
-                            'showMore': total => `+${total} ${strings.showMore}`,
-                            'work_week': strings.yearHeaderLabel
+                      {
+                        this.state.locations.length > 0 &&
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 auto', minWidth: 280 }}>
+                            <WRAEventLocation
+                              locations={this.state.locations}
+                              selectedLocations={this.state.selectedLocations}
+                              onChangeLocations={this.onChangeLocations}
+                            />
+                          </div>
+                          {/* <div style={{ marginLeft: 'auto', textAlign: 'left' }}>
+                            <EventLocationLegend
+                              locations={this.state.locations}
+                              events={this.state.eventData}
+                            />
+                          </div> */}
+                        </div>
+                      }
+                      <div className={this.state.locations.length > 0 ? 'with-filter' : 'no-filter'}>
+                        <MyCalendar
+                          dayPropGetter={this.dayPropGetter}
+                          localizer={localizer}
+                          selectable
+                          events={this.state.eventData}
+                          startAccessor="EventDate"
+                          endAccessor="EndDate"
+                          eventPropGetter={this.eventStyleGetter}
+                          onSelectSlot={this.onSelectSlot}
+                          components={{
+                            event: this.renderEvent
+                          }}
+                          onSelectEvent={this.onSelectEvent}
+                          defaultDate={moment().startOf('day').toDate()}
+                          views={{
+                            day: true,
+                            week: true,
+                            month: true,
+                            agenda: true,
+                            work_week: Year
+                          }}
+                          messages={
+                            {
+                              'today': strings.todayLabel,
+                              'previous': strings.previousLabel,
+                              'next': strings.nextLabel,
+                              'month': strings.monthLabel,
+                              'week': strings.weekLabel,
+                              'day': strings.dayLable,
+                              'showMore': total => `+${total} ${strings.showMore}`,
+                              'work_week': strings.yearHeaderLabel
+                            }
                           }
-                        }
-                      />
+                        />
+                      </div>
                     </div>
                   }
                 </div>

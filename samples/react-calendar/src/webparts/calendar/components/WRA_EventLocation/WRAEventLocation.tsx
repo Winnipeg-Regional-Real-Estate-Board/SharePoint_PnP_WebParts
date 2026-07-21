@@ -68,6 +68,7 @@ export default class WRAEventLocation extends React.PureComponent<IWRAEventLocat
           label="Select Event Location"
           multiSelect
           options={[
+            { key: 'selectAll', text: 'Select All', itemType: SelectableOptionMenuItemType.SelectAll },
             ...this.props.locations,
           ]}
           selectedKey={this.state.selectedKeys}

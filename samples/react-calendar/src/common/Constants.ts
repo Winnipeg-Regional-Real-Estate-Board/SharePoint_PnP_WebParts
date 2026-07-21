@@ -10,9 +10,59 @@ export const Constants = {
   AndConditionEnd: "</And>",
   OrConditionStart: "<Or>",
   OrConditionEnd: "</Or>",
-  latitude: 58.485601,
-  longitude: 19.807854,
-  eventLayoutOverviewPageURL: `{0}/_layouts/15/Event.aspx?ListGuid={1}&ItemId={2}`
+  latitude: 49.88302544223227,
+  longitude: -97.18531498719334,
+  eventLayoutOverviewPageURL: `{0}/_layouts/15/Event.aspx?ListGuid={1}&ItemId={2}`,
+  EventLocation: {
+    InternalName:"WRA_EventLocation",
+    DisplayName: "Event Location",
+    Type: "Choice",
+    OthersOption: {
+      key: "__OTHER_LOCATION__",
+      text: "Others"
+    }
+  },
+  DeletedField: {
+    InternalName: "Deleted",
+    DisplayName: "Deleted",
+    Type: "Boolean"
+  }
+};
+
+export const DEFAULT_OTHER_LOCATION_COLOR = "#000000";
+
+const EVENT_LOCATION_COLOR_PALETTE: string[] = [
+  "#004f5e",
+  "#1F4E79",
+  "#8A3B12",
+  "#6A1B9A",
+  "#AD1457",
+  "#289683",
+  "#006064",
+  "#5D4037",
+  "#283593",
+  "#455A64",
+  "#B71C1C",
+  "#2f94bd"
+];
+
+export const normalizeLocationKey = (value: string): string => {
+  return value ? value.trim().toLowerCase() : "";
+};
+
+export const getFixedLocationColor = (locationName: string): string => {
+  const normalized = normalizeLocationKey(locationName);
+  if (!normalized) {
+    return DEFAULT_OTHER_LOCATION_COLOR;
+  }
+
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
+    hash |= 0;
+  }
+
+  return EVENT_LOCATION_COLOR_PALETTE[Math.abs(hash) % EVENT_LOCATION_COLOR_PALETTE.length];
 };
 
 export const DayPickerStrings: IDatePickerStrings = {

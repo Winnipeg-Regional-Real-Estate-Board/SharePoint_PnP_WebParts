@@ -31,4 +31,7 @@ export interface IEventState {
   newRecurrenceEvent: boolean;
   recurrenceAction: string;
   recurrenceDescription?: string;
+  hasDeletedField?: boolean;
+  hasWraEventLocationField?: boolean;
+  customEventLocation?: string;
 }

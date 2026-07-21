@@ -111,6 +111,37 @@
     margin: 0 auto;
   }
 
+  .filterLegendRow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .filterColumn {
+    flex: 1 1 auto;
+    min-width: 260px;
+  }
+
+  .legendColumn {
+    flex: 0 1 auto;
+    margin-left: auto;
+    text-align: right;
+  }
+
+  @media screen and (max-width: 1024px) {
+    .filterLegendRow {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .legendColumn {
+      margin-left: 0;
+      text-align: left;
+    }
+  }
+
   .plainCard {
     width: 300;
     height: 286;

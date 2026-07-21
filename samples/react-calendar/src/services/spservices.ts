@@ -3,11 +3,11 @@ import { sp, Web, PermissionKind, RegionalSettings, ISiteUser, IRegionalSettings
 import { graph } from "@pnp/graph";
 import * as $ from 'jquery';
 import { IEventData } from './IEventData';
-import * as moment from 'moment';
+import moment from 'moment';
 import { IUserPermissions } from './IUserPermissions';
 import parseRecurrentEvent from './parseRecurrentEvent';
 import { IComboBoxOption } from '@fluentui/react';
-import { Constants } from "../common/Constants";
+import { Constants, DEFAULT_OTHER_LOCATION_COLOR, getFixedLocationColor, normalizeLocationKey } from "../common/Constants";
 import { Text } from "@microsoft/sp-core-library";
 
 // Class Services
@@ -77,6 +77,7 @@ export default class spservices {
       results = await web.lists.getById(listId).items.add({
         Title: newEvent.title,
         Description: newEvent.Description,
+        Deleted: !!newEvent.Deleted,
         Geolocation: newEvent.geolocation,
         ParticipantsPickerId: { results: newEvent.attendes },
         EventDate: await this.getUtcTime(newEvent.EventDate),
@@ -112,7 +113,7 @@ export default class spservices {
     try {
       const web = sp.web;
       const event = await web.lists.getById(listId).items.usingCaching().getById(eventId)
-        .select("RecurrenceID", "MasterSeriesItemID", "Id", "ID", "ParticipantsPickerId", "EventType", "Title", "Description", "EventDate", "EndDate", "Location", "Author/SipAddress", "Author/Title", "Geolocation", "fAllDayEvent", "fRecurrence", "RecurrenceData", "RecurrenceData", "Duration", "Category", "UID")
+        .select("RecurrenceID", "MasterSeriesItemID", "Id", "ID", "ParticipantsPickerId", "EventType", "Title", "Description", "Deleted", "WRA_EventLocation", "EventDate", "EndDate", "Location", "Author/SipAddress", "Author/Title", "Geolocation", "fAllDayEvent", "fRecurrence", "RecurrenceData", "RecurrenceData", "Duration", "Category", "UID")
         .expand("Author")
         .get();
 
@@ -125,6 +126,7 @@ export default class spservices {
         EventType: event.EventType,
         title: await this.deCodeHtmlEntities(event.Title),
         Description: event.Description ? event.Description : '',
+        Deleted: !!event.Deleted,
         EventDate: new Date(eventDate),
         EndDate: new Date(endDate),
         location: event.Location,
@@ -172,6 +174,7 @@ export default class spservices {
       let newItem: any = {
         Title: updateEvent.title,
         Description: updateEvent.Description,
+        Deleted: !!updateEvent.Deleted,
         Geolocation: updateEvent.geolocation,
         ParticipantsPickerId: { results: updateEvent.attendes },
         EventDate: new Date(eventDate),
@@ -230,6 +233,16 @@ export default class spservices {
     let results = null;
     try {
       const web = sp.web;
+      const hasDeletedField = await this.fieldExists(siteUrl, listId, Constants.DeletedField.InternalName);
+
+      // Soft delete when the Deleted field exists.
+      if (hasDeletedField) {
+        await web.lists.getById(listId).items.getById(event.Id).update({
+          Deleted: true
+        });
+        return;
+      }
+
       // Exception Recurrence eventtype = 4 ?  update to deleted Recurrence eventtype=3
       switch (event.EventType.toString()) {
         case '4': // Exception Recurrence Event
@@ -434,6 +447,35 @@ export default class spservices {
   }
 
   /**
+   * Checks whether a field exists in the target list by InternalName or Title.
+   *
+   * @param {string} siteUrl
+   * @param {string} listId
+   * @param {string} fieldInternalName
+   * @returns {Promise<boolean>}
+   * @memberof spservices
+   */
+  public async fieldExists(siteUrl: string, listId: string, fieldInternalName: string): Promise<boolean> {
+    if (!listId || !fieldInternalName) {
+      return false;
+    }
+
+    try {
+      const web = sp.web;
+      const safeFieldName = fieldInternalName.replace(/'/g, "''");
+      const fields = await web.lists.getById(listId).fields
+        .select("Id")
+        .filter(`InternalName eq '${safeFieldName}' or Title eq '${safeFieldName}'`)
+        .top(1)
+        .get();
+
+      return fields.length > 0;
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
    *
    * @param {string} siteUrl
    * @param {string} listId
@@ -451,13 +493,29 @@ export default class spservices {
 
     try {
       
-      // Get WRA_EventLocation Field Choices
-      const locationDropdownOption = await this.getChoiceFieldOptions(siteUrl, listId, 'WRA_EventLocation');
+      const hasDeletedField = await this.fieldExists(siteUrl, listId, Constants.DeletedField.InternalName);
+      // Get WRA_EventLocation Field Choices only when the field exists.
+      const hasWraEventLocationField = await this.fieldExists(siteUrl, listId, Constants.EventLocation.InternalName);
+      const locationDropdownOption = hasWraEventLocationField
+        ? await this.getChoiceFieldOptions(siteUrl, listId, Constants.EventLocation.InternalName)
+        : [];
       let locationColor: { location: string, color: string }[] = [];
+      const locationColorMap: { [key: string]: string } = {};
       for (const loc of locationDropdownOption) {
-        locationColor.push({ location: loc.text, color: await this.colorGenerate() });
+        const normalizedLocation = normalizeLocationKey(loc.text);
+        const fixedColor = getFixedLocationColor(loc.text);
+        locationColor.push({ location: loc.text, color: fixedColor });
+        if (normalizedLocation) {
+          locationColorMap[normalizedLocation] = fixedColor;
+        }
       }
-      let camlQueryExpression = this.setUpQueryExpression(eventStartDate, eventEndDate, locations);
+      let camlQueryExpression = this.setUpQueryExpression(
+        eventStartDate,
+        eventEndDate,
+        hasWraEventLocationField ? locations : [],
+        locationDropdownOption,
+        hasDeletedField
+      );
 
       const web = sp.web;
       const results = await web.lists.getById(listId).usingCaching().renderListDataAsStream(
@@ -481,9 +539,8 @@ export default class spservices {
               const last: number = event.Geolocation.indexOf(')');
               const geo = event.Geolocation.substring(first, last);
               const geolocation = geo.split(' ');
-              const LocationColorValue: any[] = locationColor.filter((value) => {
-                return value.location == event.WRA_EventLocation;
-              });
+              const normalizedEventLocation = normalizeLocationKey(event.WRA_EventLocation);
+              const mappedLocationColor = normalizedEventLocation ? locationColorMap[normalizedEventLocation] : undefined;
               const isAllDayEvent: boolean = event["fAllDayEvent.value"] === "1";
 
               for (const attendee of event.ParticipantsPicker) {
@@ -503,7 +560,7 @@ export default class spservices {
                 ownerPhoto: userPictureUrl ?
                   `https://outlook.office365.com/owa/service.svc/s/GetPersonaPhoto?email=${event.Author[0].email}&UA=0&size=HR96x96` : '',
                 ownerInitial: initials,
-                color: LocationColorValue.length > 0 ? LocationColorValue[0].color : '#1a75ff', // blue default
+                color: mappedLocationColor ? mappedLocationColor : DEFAULT_OTHER_LOCATION_COLOR, 
                 ownerName: event.Author[0].title,
                 attendes: attendees,
                 fAllDayEvent: isAllDayEvent,
@@ -562,7 +619,9 @@ export default class spservices {
   private setUpQueryExpression(
     eventStartDate: Date,
     eventEndDate: Date,
-    locations: IComboBoxOption[]
+    locations: IComboBoxOption[],
+    allLocationOptions: { key: string, text: string }[],
+    hasDeletedField: boolean
   ) {
     let camlQuery = `
     <View>
@@ -584,6 +643,7 @@ export default class spservices {
       <FieldRef Name='UID' />
       <FieldRef Name='fRecurrence' />
       <FieldRef Name='WRA_EventLocation' />
+      <FieldRef Name='Deleted' />
       <FieldRef Name='CommitteeName' />
       <FieldRef Name='' />
     </ViewFields>
@@ -607,59 +667,104 @@ export default class spservices {
       <RowLimit Paged=\"FALSE\">2000</RowLimit>
       </View>`;
 
-    // "No Location" option handling
-    const hasNoLocationOption = locations.some(location => location.key === '__NO_LOCATION__');
-    const actualLocations = hasNoLocationOption ? locations.filter(location => location.key !== '__NO_LOCATION__') : locations;
-
-    let locationCondition = `
+    const locationCondition = `
         <Eq>
           <FieldRef Name='WRA_EventLocation' />
           <Value Type='Choice'>{0}</Value>
         </Eq>`;
-
-    let noLocationCondition = `
-        <IsNull>
+    const notLocationCondition = `
+        <Neq>
           <FieldRef Name='WRA_EventLocation' />
-        </IsNull>`;
+          <Value Type='Choice'>{0}</Value>
+        </Neq>`;
+    const notDeletedCondition = `
+        <Eq>
+          <FieldRef Name='Deleted' />
+          <Value Type='Integer'>0</Value>
+        </Eq>`;
+    const noResultsCondition = `
+        <Eq>
+          <FieldRef Name='ID' />
+          <Value Type='Counter'>0</Value>
+        </Eq>`;
 
-    const locsLength: number = actualLocations.length;
-    let queryResult: string = "";
+    const escapeXmlValue = (value: string): string => {
+      return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
 
-    // If "No Location" option is selected, include events with no location and events that match the selected locations
-    if (hasNoLocationOption) {
-      if (locsLength > 0) {
-        let orCondition: string = `${Constants.OrConditionStart}{0}{1}${Constants.OrConditionEnd}`;
-        queryResult = Text.format(orCondition, noLocationCondition, Text.format(locationCondition, actualLocations[0].key));
-        for (let i = 1; i < actualLocations.length; i++) {
-          const location = actualLocations[i];
-          queryResult = Text.format(orCondition, Text.format(locationCondition, location.key), queryResult);
-        }
-        queryResult = Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
-      } else {
-        // Only "No Location" option is selected, so filter for items with no location
-        queryResult = Text.format(camlQuery, Constants.AndConditionStart, noLocationCondition, Constants.AndConditionEnd);
+    const buildBinaryCondition = (conditions: string[], startTag: string, endTag: string): string => {
+      if (!conditions || conditions.length === 0) {
+        return "";
       }
-      return queryResult;
+      if (conditions.length === 1) {
+        return conditions[0];
+      }
+
+      const compositeTemplate = `${startTag}{0}{1}${endTag}`;
+      let query = Text.format(compositeTemplate, conditions[0], conditions[1]);
+      for (let i = 2; i < conditions.length; i++) {
+        query = Text.format(compositeTemplate, conditions[i], query);
+      }
+      return query;
+    };
+
+    const hasOthersOptionSelected = locations.some((location) => location.key === Constants.EventLocation.OthersOption.key);
+    const selectedStandardLocations = locations.filter((location) =>
+      location.key !== Constants.EventLocation.OthersOption.key && !!location.key
+    );
+    const allStandardLocationKeys = allLocationOptions
+      .map((option) => option.key)
+      .filter((key) => !!key && key !== Constants.EventLocation.OthersOption.key);
+
+    const selectedLocationConditions = selectedStandardLocations.map((location) =>
+      Text.format(locationCondition, escapeXmlValue(location.key.toString()))
+    );
+
+    const combinedConditions: string[] = [];
+
+    if (selectedLocationConditions.length > 0) {
+      combinedConditions.push(
+        buildBinaryCondition(selectedLocationConditions, Constants.OrConditionStart, Constants.OrConditionEnd)
+      );
     }
 
-    // "No Location" option is not selected, proceed with filtering based on original selected locations only
-    if (locsLength > 0) {
-      if (locsLength == 1) {
-        return Text.format(camlQuery, Constants.AndConditionStart, Text.format(locationCondition, locations[0].key), Constants.AndConditionEnd);
-      } else {
-        let orCondition: string = `${Constants.OrConditionStart}{0}{1}${Constants.OrConditionEnd}`;
-        queryResult = Text.format(orCondition, Text.format(locationCondition, locations[0].key), Text.format(locationCondition, locations[1].key));
-
-        for (let i = 2; i < locations.length; i++) {
-          const location = locations[i];
-          queryResult = Text.format(orCondition, Text.format(locationCondition, location.key), queryResult);
-        }
-      }
-      return Text.format(camlQuery, Constants.AndConditionStart, queryResult, Constants.AndConditionEnd);
+    // "Others" means locations not found in the full configured location list.
+    if (hasOthersOptionSelected && allStandardLocationKeys.length > 0) {
+      const notInStandardLocationConditions = allStandardLocationKeys.map((locationKey) =>
+        Text.format(notLocationCondition, escapeXmlValue(locationKey.toString()))
+      );
+      combinedConditions.push(
+        buildBinaryCondition(notInStandardLocationConditions, Constants.AndConditionStart, Constants.AndConditionEnd)
+      );
     }
 
-    // No locations selected, return all events
-    return Text.format(camlQuery, "", queryResult, "");
+    const dateTailConditions: string[] = [];
+
+    if (combinedConditions.length > 0) {
+      dateTailConditions.push(buildBinaryCondition(combinedConditions, Constants.OrConditionStart, Constants.OrConditionEnd));
+    }
+
+    if (hasDeletedField) {
+      dateTailConditions.push(notDeletedCondition);
+    }
+
+    // If the location field exists but no location is selected, return no events.
+    if (allLocationOptions.length > 0 && locations.length === 0) {
+      dateTailConditions.push(noResultsCondition);
+    }
+
+    if (dateTailConditions.length > 0) {
+      const finalTailCondition = buildBinaryCondition(dateTailConditions, Constants.AndConditionStart, Constants.AndConditionEnd);
+      return Text.format(camlQuery, Constants.AndConditionStart, finalTailCondition, Constants.AndConditionEnd);
+    }
+
+    // No locations selected, return all events.
+    return Text.format(camlQuery, "", "", "");
   }
 
   /**
