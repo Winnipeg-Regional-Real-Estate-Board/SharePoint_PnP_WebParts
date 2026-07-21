@@ -99,7 +99,6 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
         selectedLocations: selectedLocations
       });
       await this.loadEvents();
-    } catch (error) {
     } catch (error: any) {
       this.setState({
         hasError: true,
