@@ -27,7 +27,7 @@ export interface ICalendarWebPartProps {
   errorMessage: string;
 }
 import spservices from '../../services/spservices';
-import * as moment from 'moment';
+import moment from 'moment';
 import { format } from '@uifabric/utilities';
 
 export default class CalendarWebPart extends BaseClientSideWebPart<ICalendarWebPartProps> {
@@ -67,6 +67,7 @@ export default class CalendarWebPart extends BaseClientSideWebPart<ICalendarWebP
   public  async onInit(): Promise<void> {
 
     this.spService = new spservices(this.context);
+    this.properties.title = this.properties.title && this.properties.title.trim() ? this.properties.title : 'Calendar';
     this.properties.siteUrl = this.properties.siteUrl ? this.properties.siteUrl : this.context.pageContext.site.absoluteUrl;
     if (!this.properties.eventStartDate){
       this.properties.eventStartDate = { value: moment().subtract(2,'years').startOf('month').toDate(), displayValue: moment().format('ddd MMM MM YYYY')};
@@ -132,7 +133,8 @@ export default class CalendarWebPart extends BaseClientSideWebPart<ICalendarWebP
       }
       // push new item value
     } catch (error) {
-      this.errorMessage =  `${error.message} -  please check if site url if valid.` ;
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      this.errorMessage =  `${errorMessage} -  please check if site url if valid.` ;
       this.context.propertyPane.refresh();
     }
     return _lists;
@@ -197,6 +199,10 @@ export default class CalendarWebPart extends BaseClientSideWebPart<ICalendarWebP
     return returnValue;
   }
 
+  private onTitleGetErrorMessage(value: string): string {
+    return value && value.trim() ? '' : strings.IsRequired;
+  }
+
   /**
    *
    * @protected
@@ -228,7 +234,8 @@ export default class CalendarWebPart extends BaseClientSideWebPart<ICalendarWebP
         super.onPropertyPaneFieldChanged(propertyPath, oldValue, newValue);
       }
     } catch (error) {
-      this.errorMessage =  `${error.message} -  please check if site url if valid.` ;
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      this.errorMessage =  `${errorMessage} -  please check if site url if valid.` ;
       this.context.propertyPane.refresh();
     }
   }
@@ -251,6 +258,11 @@ export default class CalendarWebPart extends BaseClientSideWebPart<ICalendarWebP
             {
               groupName: strings.BasicGroupName,
               groupFields: [
+                PropertyPaneTextField('title', {
+                  label: strings.TitleFieldLabel,
+                  onGetErrorMessage: this.onTitleGetErrorMessage.bind(this),
+                  deferredValidationTime: 0,
+                }),
                 PropertyPaneTextField('siteUrl', {
                   label: strings.SiteUrlFieldLabel,
                   onGetErrorMessage: this.onSiteUrlGetErrorMessage.bind(this),

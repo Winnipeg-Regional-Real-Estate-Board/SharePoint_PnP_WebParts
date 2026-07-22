@@ -73,11 +73,13 @@ export default class spservices {
     let results = null;
     try {
       const web = sp.web;
+      const hasDeletedField = await this.fieldExists(siteUrl, listId, Constants.DeletedField.InternalName);
+      const hasWraEventLocationField = await this.fieldExists(siteUrl, listId, Constants.EventLocation.InternalName);
+      const hasCommitteeField = await this.fieldExists(siteUrl, listId, Constants.CommitteeField.InternalName);
 
-      results = await web.lists.getById(listId).items.add({
+      const newItem: any = {
         Title: newEvent.title,
         Description: newEvent.Description,
-        Deleted: !!newEvent.Deleted,
         Geolocation: newEvent.geolocation,
         ParticipantsPickerId: { results: newEvent.attendes },
         EventDate: await this.getUtcTime(newEvent.EventDate),
@@ -85,13 +87,26 @@ export default class spservices {
         Location: newEvent.location,
         fAllDayEvent: newEvent.fAllDayEvent,
         fRecurrence: newEvent.fRecurrence,
-        WRA_EventLocation: newEvent.WRA_EventLocation,
         EventType: newEvent.EventType,
         UID: newEvent.UID,
         RecurrenceData: newEvent.RecurrenceData ? await this.deCodeHtmlEntities(newEvent.RecurrenceData) : "",
         MasterSeriesItemID: newEvent.MasterSeriesItemID,
         RecurrenceID: newEvent.RecurrenceID ? newEvent.RecurrenceID : undefined,
-      });
+      };
+
+      if (hasDeletedField) {
+        newItem.Deleted = !!newEvent.Deleted;
+      }
+
+      if (hasWraEventLocationField) {
+        newItem.WRA_EventLocation = newEvent.WRA_EventLocation;
+      }
+
+      if (hasCommitteeField && newEvent.CommitteeName) {
+        newItem.CommitteeName = newEvent.CommitteeName;
+      }
+
+      results = await web.lists.getById(listId).items.add(newItem);
     }
     catch (error) {
       return Promise.reject(error);
@@ -112,8 +127,39 @@ export default class spservices {
     let returnEvent: IEventData = undefined;
     try {
       const web = sp.web;
+      const hasCommitteeField = await this.fieldExists(siteUrl, listId, Constants.CommitteeField.InternalName);
+      const selectFields: string[] = [
+        "RecurrenceID",
+        "MasterSeriesItemID",
+        "Id",
+        "ID",
+        "ParticipantsPickerId",
+        "EventType",
+        "Title",
+        "Description",
+        "Deleted",
+        "WRA_EventLocation",
+        "EventDate",
+        "EndDate",
+        "Location",
+        "Author/SipAddress",
+        "Author/Title",
+        "Geolocation",
+        "fAllDayEvent",
+        "fRecurrence",
+        "RecurrenceData",
+        "RecurrenceData",
+        "Duration",
+        "Category",
+        "UID"
+      ];
+
+      if (hasCommitteeField) {
+        selectFields.push(Constants.CommitteeField.InternalName);
+      }
+
       const event = await web.lists.getById(listId).items.usingCaching().getById(eventId)
-        .select("RecurrenceID", "MasterSeriesItemID", "Id", "ID", "ParticipantsPickerId", "EventType", "Title", "Description", "Deleted", "WRA_EventLocation", "EventDate", "EndDate", "Location", "Author/SipAddress", "Author/Title", "Geolocation", "fAllDayEvent", "fRecurrence", "RecurrenceData", "RecurrenceData", "Duration", "Category", "UID")
+        .select(...selectFields)
         .expand("Author")
         .get();
 
@@ -139,6 +185,7 @@ export default class spservices {
         fAllDayEvent: event.fAllDayEvent,
         geolocation: { Longitude: event.Geolocation ? event.Geolocation.Longitude : 0, Latitude: event.Geolocation ? event.Geolocation.Latitude : 0 },
         WRA_EventLocation: event.WRA_EventLocation,
+        CommitteeName: hasCommitteeField ? event.CommitteeName : undefined,
         Duration: event.Duration,
         UID: event.UID,
         RecurrenceData: event.RecurrenceData ? await this.deCodeHtmlEntities(event.RecurrenceData) : "",
@@ -168,13 +215,15 @@ export default class spservices {
       if (updateEvent.EventType.toString() == "1") await this.deleteRecurrenceExceptions(updateEvent, siteUrl, listId);
 
       const web = sp.web;
+      const hasDeletedField = await this.fieldExists(siteUrl, listId, Constants.DeletedField.InternalName);
+      const hasWraEventLocationField = await this.fieldExists(siteUrl, listId, Constants.EventLocation.InternalName);
+      const hasCommitteeField = await this.fieldExists(siteUrl, listId, Constants.CommitteeField.InternalName);
       const eventDate = await this.getUtcTime(updateEvent.EventDate);
       const endDate = await this.getUtcTime(updateEvent.EndDate);
 
       let newItem: any = {
         Title: updateEvent.title,
         Description: updateEvent.Description,
-        Deleted: !!updateEvent.Deleted,
         Geolocation: updateEvent.geolocation,
         ParticipantsPickerId: { results: updateEvent.attendes },
         EventDate: new Date(eventDate),
@@ -182,10 +231,21 @@ export default class spservices {
         Location: updateEvent.location,
         fAllDayEvent: updateEvent.fAllDayEvent,
         fRecurrence: updateEvent.fRecurrence,
-        WRA_EventLocation: updateEvent.WRA_EventLocation,
         RecurrenceData: updateEvent.RecurrenceData ? await this.deCodeHtmlEntities(updateEvent.RecurrenceData) : "",
         EventType: updateEvent.EventType,
       };
+
+      if (hasDeletedField) {
+        newItem.Deleted = !!updateEvent.Deleted;
+      }
+
+      if (hasWraEventLocationField) {
+        newItem.WRA_EventLocation = updateEvent.WRA_EventLocation;
+      }
+
+      if (hasCommitteeField) {
+        newItem.CommitteeName = updateEvent.CommitteeName ? updateEvent.CommitteeName : null;
+      }
 
       if (updateEvent.UID) {
         newItem.UID = updateEvent.UID;
@@ -501,9 +561,10 @@ export default class spservices {
         : [];
       let locationColor: { location: string, color: string }[] = [];
       const locationColorMap: { [key: string]: string } = {};
-      for (const loc of locationDropdownOption) {
+      for (let index = 0; index < locationDropdownOption.length; index++) {
+        const loc = locationDropdownOption[index];
         const normalizedLocation = normalizeLocationKey(loc.text);
-        const fixedColor = getFixedLocationColor(loc.text);
+        const fixedColor = getFixedLocationColor(loc.text, index);
         locationColor.push({ location: loc.text, color: fixedColor });
         if (normalizedLocation) {
           locationColorMap[normalizedLocation] = fixedColor;
@@ -566,6 +627,7 @@ export default class spservices {
                 fAllDayEvent: isAllDayEvent,
                 geolocation: { Longitude: parseFloat(geolocation[0]), Latitude: parseFloat(geolocation[1]) },
                 WRA_EventLocation: event.WRA_EventLocation,
+                CommitteeName: event.CommitteeName,
                 Duration: event.Duration,
                 RecurrenceData: event.RecurrenceData ? await this.deCodeHtmlEntities(event.RecurrenceData) : "",
                 fRecurrence: event.fRecurrence,

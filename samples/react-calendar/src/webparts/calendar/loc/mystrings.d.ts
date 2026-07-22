@@ -102,6 +102,7 @@ declare interface ICalendarWebPartStrings {
   EventPanelTitle: string;
   PropertyPaneDescription: string;
   BasicGroupName: string;
+  TitleFieldLabel: string;
   SiteUrlFieldLabel: string;
   ListFieldLabel: string;
   yearHeaderLabel: string;

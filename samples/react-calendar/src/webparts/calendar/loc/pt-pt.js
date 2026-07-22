@@ -103,6 +103,7 @@ define([], function() {
     EventPanelTitle: "Editar/Addcionar Evento",
     PropertyPaneDescription: "Calendário com marcação de eventos, mostra os eventos criados na lista calendário definida no site seleccionado",
     BasicGroupName: "Indique o Url do site e calendário",
+    TitleFieldLabel: "Título",
     SiteUrlFieldLabel: 'Url do Site',
     ListFieldLabel: 'Nome da Lista Calendario',
     yearLabel: "Ano",

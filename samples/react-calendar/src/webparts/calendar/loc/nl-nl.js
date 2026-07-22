@@ -103,6 +103,7 @@ define([], function () {
       EventPanelTitle: "Evenement toevoegen/editeren",
       PropertyPaneDescription: "Kalender",
       BasicGroupName: "Eigenschappen",
+      TitleFieldLabel: "Titel",
       SiteUrlFieldLabel: "Site Url",
       ListFieldLabel: "Kalenderlijst",
       yearHeaderLabel: "Jaar",

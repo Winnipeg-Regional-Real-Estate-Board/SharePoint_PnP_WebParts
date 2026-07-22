@@ -380,7 +380,7 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
     return (
       <Customizer>
         <div className={styles.calendar} style={{ backgroundColor: 'white', padding: '20px' }}>
-          <WebPartTitle displayMode={this.props.displayMode}
+          <WebPartTitle displayMode={DisplayMode.Read}
             title={this.props.title}
             updateProperty={this.props.updateProperty} />
           {
@@ -399,29 +399,26 @@ export default class Calendar extends React.Component<ICalendarProps, ICalendarS
                 </MessageBar>
                 :
                 // show Calendar
-                // Test if is loading Events
                 <div>
                   {this.state.isloading ? <Spinner size={SpinnerSize.large} label={strings.LoadingEventsLabel} /> :
                     <div className={styles.container}>
                       {
                         this.state.locations.length > 0 &&
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
-                          <div style={{ flex: '1 1 auto', minWidth: 280 }}>
+                        <div style={{ marginBottom: 8 }}>
+                          <EventLocationLegend
+                            locations={this.state.locations}
+                            events={this.state.eventData}
+                          />
+                          <div style={{ minWidth: 0, width: '100%' }}>
                             <WRAEventLocation
                               locations={this.state.locations}
                               selectedLocations={this.state.selectedLocations}
                               onChangeLocations={this.onChangeLocations}
                             />
                           </div>
-                          {/* <div style={{ marginLeft: 'auto', textAlign: 'left' }}>
-                            <EventLocationLegend
-                              locations={this.state.locations}
-                              events={this.state.eventData}
-                            />
-                          </div> */}
                         </div>
                       }
-                      <div className={this.state.locations.length > 0 ? 'with-filter' : 'no-filter'}>
+                      <div className='calendar-content'>
                         <MyCalendar
                           dayPropGetter={this.dayPropGetter}
                           localizer={localizer}

@@ -25,10 +25,10 @@ const EventLocationLegend = (props: IEventLocationLegendProps): JSX.Element => {
     return !!normalizedLocation && !configuredLocationSet.has(normalizedLocation);
   });
 
-  const legendItems: { key: string; label: string; color: string }[] = configuredLocations.map((location) => ({
+  const legendItems: { key: string; label: string; color: string }[] = configuredLocations.map((location, index) => ({
     key: location.key.toString(),
     label: location.text,
-    color: getFixedLocationColor(location.text)
+    color: getFixedLocationColor(location.text, index)
   }));
 
   if (hasOthers) {

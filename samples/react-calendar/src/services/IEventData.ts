@@ -6,6 +6,7 @@ export interface IEventData {
   Deleted?: boolean;
   location?: string;
   WRA_EventLocation?: string;
+  CommitteeName?: string;
   EventDate: Date;
   EndDate: Date;
   color?: string;

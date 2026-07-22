@@ -1,9 +1,11 @@
 .legendContainer {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 6px;
-  margin-bottom: 10px;
+  column-gap: 14px;
+  row-gap: 6px;
+  margin-bottom: 8px;
 }
 
 .legendItem {

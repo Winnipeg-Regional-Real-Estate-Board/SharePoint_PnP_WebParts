@@ -105,10 +105,13 @@
 
 .calendar {
   .container {
+    display: flex;
+    flex-direction: column;
     max-width: 100%;
     min-height: 400px;
-    height: 600px;
+    height: 800px;
     margin: 0 auto;
+    min-width: 0;
   }
 
   .filterLegendRow {

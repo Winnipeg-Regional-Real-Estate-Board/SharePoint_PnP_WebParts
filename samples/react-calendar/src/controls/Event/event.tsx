@@ -67,12 +67,14 @@ const DayPickerStrings: IDatePickerStrings = {
 export class Event extends React.Component<IEventProps, IEventState> {
   private spService: spservices = null;
   private attendees: IPersonaProps[] = [];
+  private readonly noneDropdownOption: IDropdownOption = { key: "", text: "" };
   private latitude: number = Constants.latitude;
   private longitude: number = Constants.longitude;
   private returnedRecurrenceInfo: { recurrenceData: string, eventDate: Date, endDate: Date } = undefined;
 
   private categoryDropdownOption: IDropdownOption[] = [];
   private eventLocationDropdownOption: IDropdownOption[] = [];
+  private committeeDropdownOption: IDropdownOption[] = [];
 
   public constructor(props) {
     super(props);
@@ -114,6 +116,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
       recurrenceAction: 'display',
       hasDeletedField: false,
       hasWraEventLocationField: false,
+      hasCommitteeField: false,
       customEventLocation: '',
       userPermissions: { hasPermissionAdd: false, hasPermissionDelete: false, hasPermissionEdit: false, hasPermissionView: false },
     };
@@ -138,6 +141,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
     this.onCategoryChanged = this.onCategoryChanged.bind(this);
     this.onEventLocationChanged = this.onEventLocationChanged.bind(this);
     this.onCustomEventLocationChanged = this.onCustomEventLocationChanged.bind(this);
+    this.onCommitteeChanged = this.onCommitteeChanged.bind(this);
     this.onDeletedChanged = this.onDeletedChanged.bind(this);
     this.onEditRecurrence = this.onEditRecurrence.bind(this);
     this.returnRecurrenceInfo = this.returnRecurrenceInfo.bind(this);
@@ -288,9 +292,17 @@ export class Event extends React.Component<IEventProps, IEventState> {
     // Check optional fields and load choice options only when those fields exist.
     const hasDeletedField: boolean = await this.spService.fieldExists(this.props.siteUrl, this.props.listId, Constants.DeletedField.InternalName);
     const hasWraEventLocationField: boolean = await this.spService.fieldExists(this.props.siteUrl, this.props.listId, Constants.EventLocation.InternalName);
+    const hasCommitteeField: boolean = await this.spService.fieldExists(this.props.siteUrl, this.props.listId, Constants.CommitteeField.InternalName);
     this.eventLocationDropdownOption = hasWraEventLocationField
       ? (await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.listId, Constants.EventLocation.InternalName))
           .map((option) => ({ key: option.key, text: option.text }))
+      : [];
+    this.committeeDropdownOption = hasCommitteeField
+      ? [
+          this.noneDropdownOption,
+          ...(await this.spService.getChoiceFieldOptions(this.props.siteUrl, this.props.listId, Constants.CommitteeField.InternalName))
+            .map((option) => ({ key: option.key, text: option.text }))
+        ]
       : [];
 
     const normalize = (value: string): string => value ? value.trim().toLowerCase() : '';
@@ -353,6 +365,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
         recurrenceDescription: recurrenceInfo,
         hasDeletedField: hasDeletedField,
         hasWraEventLocationField: hasWraEventLocationField,
+        hasCommitteeField: hasCommitteeField,
         customEventLocation: customEventLocation
       });
     } else {
@@ -367,6 +380,7 @@ export class Event extends React.Component<IEventProps, IEventState> {
         eventData: { ...event, EventType: "0", Deleted: false },
         hasDeletedField: hasDeletedField,
         hasWraEventLocationField: hasWraEventLocationField,
+        hasCommitteeField: hasCommitteeField,
         customEventLocation: '',
       });
     }
@@ -491,6 +505,15 @@ export class Event extends React.Component<IEventProps, IEventState> {
 
   private onCustomEventLocationChanged(ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, value?: string): void {
     this.setState({ customEventLocation: value || '' });
+  }
+
+  private onCommitteeChanged(ev: React.FormEvent<HTMLDivElement>, item: IDropdownOption): void {
+    this.setState({
+      eventData: {
+        ...this.state.eventData,
+        CommitteeName: item && item.key ? item.key.toString() : undefined
+      }
+    });
   }
 
   private onDeletedChanged(ev?: React.FormEvent<HTMLElement | HTMLInputElement>, checked?: boolean): void {
@@ -1006,6 +1029,19 @@ export class Event extends React.Component<IEventProps, IEventState> {
                     disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
                   />
                 </div>
+                {
+                  this.state.hasCommitteeField &&
+                  <div>
+                    <Dropdown
+                      label={Constants.CommitteeField.DisplayName}
+                      selectedKey={this.state.eventData && this.state.eventData.CommitteeName ? this.state.eventData.CommitteeName : this.noneDropdownOption.key}
+                      onChange={this.onCommitteeChanged}
+                      options={this.committeeDropdownOption}
+                      placeholder=""
+                      disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
+                    />
+                  </div>
+                }
                 {
                   this.state.hasWraEventLocationField &&
                   <div>

@@ -26,6 +26,11 @@ export const Constants = {
     InternalName: "Deleted",
     DisplayName: "Deleted",
     Type: "Boolean"
+  },
+  CommitteeField: {
+    InternalName: "CommitteeName",
+    DisplayName: "Committee",
+    Type: "Choice"
   }
 };
 
@@ -33,36 +38,54 @@ export const DEFAULT_OTHER_LOCATION_COLOR = "#000000";
 
 const EVENT_LOCATION_COLOR_PALETTE: string[] = [
   "#004f5e",
-  "#1F4E79",
-  "#8A3B12",
-  "#6A1B9A",
+  "#d397d8",
+  "#fcd389",
   "#AD1457",
+  "#2f94bd",
   "#289683",
-  "#006064",
-  "#5D4037",
+  "#43f8e0",
+  "#83e293",
   "#283593",
   "#455A64",
   "#B71C1C",
-  "#2f94bd"
+  "#802c45"
 ];
 
 export const normalizeLocationKey = (value: string): string => {
   return value ? value.trim().toLowerCase() : "";
 };
 
-export const getFixedLocationColor = (locationName: string): string => {
-  const normalized = normalizeLocationKey(locationName);
-  if (!normalized) {
+const mixHexColors = (firstHex: string, secondHex: string): string => {
+  const parseChannel = (value: string, start: number): number => parseInt(value.substr(start, 2), 16);
+  const red = Math.round((parseChannel(firstHex, 1) + parseChannel(secondHex, 1)) / 2);
+  const green = Math.round((parseChannel(firstHex, 3) + parseChannel(secondHex, 3)) / 2);
+  const blue = Math.round((parseChannel(firstHex, 5) + parseChannel(secondHex, 5)) / 2);
+
+  const toHex = (value: number): string => {
+    const hex = value.toString(16);
+    return hex.length === 1 ? `0${hex}` : hex;
+  };
+  return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
+};
+
+export const getFixedLocationColor = (_locationName: string, locationIndex: number): string => {
+  if (locationIndex === undefined || locationIndex === null || locationIndex < 0) {
     return DEFAULT_OTHER_LOCATION_COLOR;
   }
 
-  let hash = 0;
-  for (let i = 0; i < normalized.length; i++) {
-    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
-    hash |= 0;
+  const paletteSize = EVENT_LOCATION_COLOR_PALETTE.length;
+  if (locationIndex < paletteSize) {
+    return EVENT_LOCATION_COLOR_PALETTE[locationIndex];
   }
 
-  return EVENT_LOCATION_COLOR_PALETTE[Math.abs(hash) % EVENT_LOCATION_COLOR_PALETTE.length];
+  const mixedIndex = locationIndex - paletteSize;
+  const firstColorIndex = mixedIndex % paletteSize;
+  const secondColorIndex = Math.floor(mixedIndex / paletteSize) % paletteSize;
+
+  return mixHexColors(
+    EVENT_LOCATION_COLOR_PALETTE[firstColorIndex],
+    EVENT_LOCATION_COLOR_PALETTE[secondColorIndex]
+  );
 };
 
 export const DayPickerStrings: IDatePickerStrings = {

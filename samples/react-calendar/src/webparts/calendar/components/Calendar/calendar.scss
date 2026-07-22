@@ -85,14 +85,12 @@
   white-space: nowrap;
 }
 
-.with-filter, .no-filter {
-  height: 100%;
+.calendar-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
 }
 
-.with-filter .rbc-calendar {
-  height: 90% !important;
-}
-
-.no-filter .rbc-calendar {
+.calendar-content .rbc-calendar {
   height: 100% !important;
 }
