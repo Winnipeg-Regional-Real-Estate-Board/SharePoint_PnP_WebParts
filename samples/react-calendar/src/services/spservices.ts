@@ -874,6 +874,32 @@ export default class spservices {
     }
   }
 
+  public async getGeoLocationByAddress(location: string) {
+    if (!location || !location.trim()) {
+      return null;
+    }
+
+    try {
+      const apiUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`;
+      const results = await $.ajax({
+        url: apiUrl,
+        type: 'GET',
+        dataType: 'json',
+        headers: {
+          'content-type': 'application/json;charset=utf-8',
+          'accept': 'application/json;odata=nometadata',
+        }
+      });
+
+      if (results && results.length > 0) {
+        return results[0];
+      }
+      return null;
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
   public async enCodeHtmlEntities(string: string) {
 
     const HtmlEntitiesMap = {

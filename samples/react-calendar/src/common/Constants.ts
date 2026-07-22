@@ -37,7 +37,7 @@ export const Constants = {
 export const DEFAULT_OTHER_LOCATION_COLOR = "#000000";
 
 const EVENT_LOCATION_COLOR_PALETTE: string[] = [
-  "#004f5e",
+  "#4eb860",
   "#d397d8",
   "#fcd389",
   "#AD1457",

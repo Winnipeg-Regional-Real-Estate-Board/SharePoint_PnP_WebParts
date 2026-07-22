@@ -133,6 +133,8 @@ export class Event extends React.Component<IEventProps, IEventState> {
     this.onUpdateCoordinates = this.onUpdateCoordinates.bind(this);
     this.onGetErrorMessageTitle = this.onGetErrorMessageTitle.bind(this);
     this.onChangeEventTitle = this.onChangeEventTitle.bind(this);
+    this.onChangeLocationText = this.onChangeLocationText.bind(this);
+    this.onLocationTextBlur = this.onLocationTextBlur.bind(this);
     this.getPeoplePickerItems = this.getPeoplePickerItems.bind(this);
     this.hidePanel = this.hidePanel.bind(this);
     this.onDelete = this.onDelete.bind(this);
@@ -220,10 +222,18 @@ export class Event extends React.Component<IEventProps, IEventState> {
       eventData.WRA_EventLocation = customEventLocation;
     }
 
+    // Keep location as entered/selected by user. Do not auto-populate when empty.
+    const currentLocation = eventData.location ? eventData.location.trim() : '';
+    eventData.location = currentLocation;
+
+    // When location is blank, persist default coordinates.
+    if (!currentLocation) {
+      this.latitude = Constants.latitude;
+      this.longitude = Constants.longitude;
+    }
+
     // get Geolocation
     eventData.geolocation = { Latitude: this.latitude, Longitude: this.longitude };
-    const locationInfo = await this.spService.getGeoLactionName(this.latitude, this.longitude);
-    eventData.location = locationInfo && locationInfo.display_name ? locationInfo.display_name : (eventData.location || '');
 
     // get Attendees
     if (!eventData.attendes) { //vinitialize if no attendees
@@ -472,6 +482,53 @@ export class Event extends React.Component<IEventProps, IEventState> {
   private onChangeEventTitle(event: any) {
     const eventTitle = event.target.value;
     this.setState({ eventData: { ...this.state.eventData, title: eventTitle } });
+  }
+
+  private onChangeLocationText(ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, value?: string): void {
+    this.setState({ eventData: { ...this.state.eventData, location: value || '' } });
+  }
+
+  private async onLocationTextBlur(): Promise<void> {
+    const locationText = this.state.eventData && this.state.eventData.location
+      ? this.state.eventData.location.trim()
+      : '';
+
+    if (!locationText) {
+      this.latitude = Constants.latitude;
+      this.longitude = Constants.longitude;
+      this.setState({
+        locationLatitude: this.latitude,
+        locationLongitude: this.longitude,
+        eventData: { ...this.state.eventData, location: '' }
+      });
+      return;
+    }
+
+    try {
+      const locationMatch = await this.spService.getGeoLocationByAddress(locationText);
+      if (locationMatch) {
+        const latitude = parseFloat(locationMatch.lat);
+        const longitude = parseFloat(locationMatch.lon);
+        if (!isNaN(latitude) && !isNaN(longitude)) {
+          this.latitude = latitude;
+          this.longitude = longitude;
+          this.setState({
+            locationLatitude: this.latitude,
+            locationLongitude: this.longitude
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      // Keep the typed location and fall back to default map coordinates on lookup errors.
+    }
+
+    this.latitude = Constants.latitude;
+    this.longitude = Constants.longitude;
+    this.setState({
+      locationLatitude: this.latitude,
+      locationLongitude: this.longitude
+    });
   }
 
   /**
@@ -1305,7 +1362,9 @@ export class Event extends React.Component<IEventProps, IEventState> {
                   <TextField
                     value={this.state.eventData && this.state.eventData.location ? this.state.eventData.location : ''}
                     label={strings.LocationTextLabel}
-                    readOnly
+                    onChange={this.onChangeLocationText}
+                    onBlur={this.onLocationTextBlur}
+                    disabled={this.state.userPermissions.hasPermissionAdd || this.state.userPermissions.hasPermissionEdit ? false : true}
                     multiline />
                 </div>
                 <div>
