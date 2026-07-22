@@ -77,6 +77,7 @@ The Web Part checks the user's permissions for the View, Add, Edit, and Delete e
 
 Property |Type|Required| comments
 --------------------|----|--------|----------
+Title | Text | yes | For titling the webpart
 Site URL of Calendar List | Text| yes|
 Calendar list| Choice/Dropdown | yes|  this is filled with all list of  type "event list" created
 Start Date | Date | yes | Event Date
@@ -122,7 +123,7 @@ Version|Date|Comments
 1.0.20|October 1, 2024| upgraded to SPFx 1.16.1
 1.0.21|November 03, 2024| upgraded to SPFx 1.20.0
 1.0.22|January 15, 2025| Fixed categories filter issues
-
+1.1 | July 22, 2026 | Added Custom Fields for WRREB Purposes
 ## Minimal Path to Awesome
 
 * Clone this repository
@@ -134,6 +135,14 @@ Version|Date|Comments
   * Add to **AppCatalog** and deploy
 
 > This sample can also be opened with [VS Code Remote Development](https://code.visualstudio.com/docs/remote/remote-overview). Visit <https://aka.ms/spfx-devcontainer> for further instructions.
+
+## For Development
+
+* in command line, run:
+  * `npm install --save-dev`
+  * `npm install`
+  * `gulp serve --nobrowser`
+* Set up VS Code debugging launch.json
 
 ## Help
 
